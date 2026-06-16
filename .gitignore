@@ -1,0 +1,42 @@
+# Node.js & Vite (Frontend)
+node_modules/
+front-end/node_modules/
+dist/
+front-end/dist/
+*.local
+front-end/.env
+front-end/.env.local
+front-end/.env.development.local
+front-end/.env.test.local
+front-end/.env.production.local
+
+# Python (Backend)
+venv/
+back-end/venv/
+.venv/
+__pycache__/
+back-end/__pycache__/
+*.py[cod]
+*$py.class
+back-end/.env
+
+# Environment & Private files (General)
+.env
+.env.local
+.env.*.local
+.env.backup
+.env.production
+.env.development
+
+# Editors & IDEs
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# OS Files
+.DS_Store
+Thumbs.db

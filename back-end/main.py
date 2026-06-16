@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
-from sqlalchemy import create_engine, text
+import pymysql
 
 app = FastAPI(title="API Obra Social")
 
@@ -30,20 +30,29 @@ def test_db():
     db_port = os.getenv("DB_PORT", "3306")
     db_name = os.getenv("DB_NAME", "obra_social")
     
-    # URL de conexión SQLAlchemy para MySQL/MariaDB
-    database_url = f"mysql+pymysql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
-    
     try:
-        # Intentamos conectar con un timeout de 5 segundos
-        engine = create_engine(database_url, connect_args={"connect_timeout": 5})
-        with engine.connect() as connection:
-            result = connection.execute(text("SELECT 1"))
-            return {
-                "status": "connected",
-                "message": "¡Conexión a MySQL exitosa desde Python!",
-                "database": db_name,
-                "host": db_host
-            }
+        # Intentamos conectar usando PyMySQL nativo (compatible 100% con Python 3.14)
+        connection = pymysql.connect(
+            host=db_host,
+            user=db_user,
+            password=db_password,
+            database=db_name,
+            port=int(db_port),
+            connect_timeout=5
+        )
+        
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+            
+        connection.close()
+        
+        return {
+            "status": "connected",
+            "message": "¡Conexión a MySQL exitosa desde Python (usando PyMySQL)!",
+            "database": db_name,
+            "host": db_host
+        }
     except Exception as e:
         return {
             "status": "error",
