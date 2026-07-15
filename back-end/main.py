@@ -23,23 +23,29 @@ def read_root():
 
 @app.get("/db-test")
 def test_db():
-    # Variables de entorno proveídas localmente (.env) o por Dokploy
-    db_user = os.getenv("DB_USER", "postgres")
-    db_password = os.getenv("DB_PASSWORD", "postgres")
-    db_host = os.getenv("DB_HOST", "localhost")
-    db_port = os.getenv("DB_PORT", "5432")
-    db_name = os.getenv("DB_NAME", "obra_social")
+    # Soporte para DATABASE_URL (fácil de usar en Dokploy) o variables individuales
+    database_url = os.getenv("DATABASE_URL")
     
     try:
-        # Intentamos conectar usando psycopg2
-        connection = psycopg2.connect(
-            host=db_host,
-            user=db_user,
-            password=db_password,
-            dbname=db_name,
-            port=int(db_port),
-            connect_timeout=5
-        )
+        if database_url:
+            connection = psycopg2.connect(database_url, connect_timeout=5)
+            db_name = connection.info.dbname
+            db_host = connection.info.host
+        else:
+            db_user = os.getenv("DB_USER", "postgres")
+            db_password = os.getenv("DB_PASSWORD", "postgres")
+            db_host = os.getenv("DB_HOST", "localhost")
+            db_port = os.getenv("DB_PORT", "5432")
+            db_name = os.getenv("DB_NAME", "obra_social")
+            
+            connection = psycopg2.connect(
+                host=db_host,
+                user=db_user,
+                password=db_password,
+                dbname=db_name,
+                port=int(db_port),
+                connect_timeout=5
+            )
         
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1")
