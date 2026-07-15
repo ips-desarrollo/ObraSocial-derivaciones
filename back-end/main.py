@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
-import pymysql
+import psycopg2
 
 app = FastAPI(title="API Obra Social")
 
@@ -24,19 +24,19 @@ def read_root():
 @app.get("/db-test")
 def test_db():
     # Variables de entorno proveídas localmente (.env) o por Dokploy
-    db_user = os.getenv("DB_USER", "root")
-    db_password = os.getenv("DB_PASSWORD", "")
+    db_user = os.getenv("DB_USER", "postgres")
+    db_password = os.getenv("DB_PASSWORD", "postgres")
     db_host = os.getenv("DB_HOST", "localhost")
-    db_port = os.getenv("DB_PORT", "3306")
+    db_port = os.getenv("DB_PORT", "5432")
     db_name = os.getenv("DB_NAME", "obra_social")
     
     try:
-        # Intentamos conectar usando PyMySQL nativo (compatible 100% con Python 3.14)
-        connection = pymysql.connect(
+        # Intentamos conectar usando psycopg2
+        connection = psycopg2.connect(
             host=db_host,
             user=db_user,
             password=db_password,
-            database=db_name,
+            dbname=db_name,
             port=int(db_port),
             connect_timeout=5
         )
@@ -49,13 +49,13 @@ def test_db():
         
         return {
             "status": "connected",
-            "message": "¡Conexión a MySQL exitosa desde Python (usando PyMySQL)!",
+            "message": "¡Conexión a PostgreSQL exitosa desde Python (usando psycopg2)!",
             "database": db_name,
             "host": db_host
         }
     except Exception as e:
         return {
             "status": "error",
-            "message": "No se pudo conectar a la base de datos MySQL. Revisa tus credenciales o si el servicio está activo.",
+            "message": "No se pudo conectar a la base de datos PostgreSQL. Revisa tus credenciales o si el servicio está activo.",
             "error": str(e)
         }

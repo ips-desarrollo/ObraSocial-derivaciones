@@ -77,10 +77,10 @@ function App() {
         {/* Tarjeta de Base de Datos */}
         <div className="card">
           <div className="card-header">
-            <span className="badge-tech">MySQL</span>
+            <span className="badge-tech">PostgreSQL</span>
             <h2>Base de Datos (Dokploy / Local)</h2>
           </div>
-          <p className="card-desc">Prueba la conexión a tu MySQL desde el Backend de Python.</p>
+          <p className="card-desc">Prueba la conexión a tu PostgreSQL desde el Backend de Python.</p>
           
           <button className="btn" onClick={testDatabase} disabled={dbStatus.loading}>
             {dbStatus.loading ? 'Verificando...' : 'Probar Conexión SQL'}
