@@ -208,7 +208,7 @@ export default function Afiliados() {
         <img src={logoSiglas} alt="IPS" className="af-logo" />
 
         <div className="af-identity">
-          <h1 className="af-name" style={{ color: '#dde3ed' }}>{af.apellido}, {af.nombre}</h1>
+          <h1 className="af-name">{af.apellido}, {af.nombre}</h1>
           <div className="af-meta">
             <span className="af-meta-item">{af.tipo_documento} {fmtDoc(af.documento)}</span>
             <span className="af-meta-item">CUIL {af.cuil}</span>
