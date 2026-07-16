@@ -3,9 +3,8 @@
   line-height: 1.5;
   font-weight: 400;
 
-  color-scheme: dark;
-  color: #f8fafc;
-  background-color: #0b0f19;
+  color-scheme: light;
+  color: #1e2a3a;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -19,6 +18,13 @@ body {
   place-items: center;
   min-width: 320px;
   min-height: 100vh;
+  background:
+    radial-gradient(ellipse 30% 70% at 0%   25%, rgba(90, 116, 186, 0.35) 0%, transparent 70%),
+    radial-gradient(ellipse 25% 50% at 0%   80%, rgba(68, 92, 164, 0.28) 0%, transparent 65%),
+    radial-gradient(ellipse 30% 70% at 100% 15%, rgba(90, 116, 186, 0.35) 0%, transparent 70%),
+    radial-gradient(ellipse 25% 55% at 100% 75%, rgba(68, 92, 164, 0.28) 0%, transparent 65%)
+    #ffffff;
+  background-attachment: fixed;
 }
 
 #root {

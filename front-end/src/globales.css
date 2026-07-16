@@ -1,0 +1,48 @@
+:root {
+  /* IPS Brand */
+  --ips: #445ca4;
+  --ips-dark: #2e4080;
+  --ips-light: #5a74ba;
+  --ips-subtle: rgba(68, 92, 164, 0.08);
+  --ips-border: rgba(68, 92, 164, 0.2);
+
+  /* Surfaces */
+  --bg: #f0f2f7;
+  --surface: #ffffff;
+  --surface-2: #f7f8fc;
+  --surface-3: #eef0f7;
+
+  /* Borders */
+  --border: #e2e6f0;
+  --border-hover: rgba(68, 92, 164, 0.35);
+
+  /* Text */
+  --text: #1e2a3a;
+  --text-secondary: #4a5568;
+  --text-muted: #9aa5b8;
+  --label: #8896ab;
+
+  /* Feedback */
+  --success: #16a34a;
+  --success-bg: rgba(22, 163, 74, 0.08);
+  --warning: #d97706;
+  --warning-bg: rgba(217, 119, 6, 0.08);
+  --danger: #dc2626;
+  --danger-bg: rgba(220, 38, 38, 0.08);
+  --info: #2563eb;
+  --info-bg: rgba(37, 99, 235, 0.08);
+
+  /* White */
+  --white: #ffffff;
+
+  /* Radius */
+  --r-sm: 6px;
+  --r: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(30, 42, 58, 0.08);
+  --shadow: 0 4px 16px rgba(30, 42, 58, 0.1);
+  --shadow-lg: 0 8px 32px rgba(30, 42, 58, 0.12);
+}

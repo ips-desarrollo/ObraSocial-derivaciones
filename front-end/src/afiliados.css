@@ -1,0 +1,439 @@
+/* ─── Panel wrapper ─────────────────────────────────────────── */
+.af-panel {
+  display: flex;
+  flex-direction: column;
+  max-width: 1080px;
+  margin: 0 auto;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  background: var(--border);
+  gap: 1px;
+  font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+}
+
+/* ─── Header ────────────────────────────────────────────────── */
+.af-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1.5rem 1.75rem 1.5rem 2rem;
+  background: #0f172a;
+  overflow: hidden;
+}
+
+.af-header::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 55% 120% at 85% 50%,  rgba(90, 116, 186, 0.42) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 100% at 10% 10%,  rgba(68, 92, 164, 0.35) 0%, transparent 65%),
+    radial-gradient(ellipse 35% 90%  at 50% 110%, rgba(46, 64, 128, 0.38) 0%, transparent 60%),
+    radial-gradient(ellipse 30% 80%  at 95% 0%,   rgba(90, 116, 186, 0.28) 0%, transparent 55%);
+  pointer-events: none;
+}
+
+.af-logo {
+  flex-shrink: 0;
+  height: 52px;
+  width: auto;
+  filter: brightness(0) invert(1);
+  opacity: 0.92;
+  position: relative;
+  z-index: 1;
+}
+
+.af-identity {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.af-name {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #ee0808;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.af-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.55rem;
+}
+
+.af-meta-item {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.65);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 0.2rem 0.55rem;
+  letter-spacing: 0.025em;
+}
+
+/* ─── Two-column body ───────────────────────────────────────── */
+.af-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+}
+
+.af-col {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--border);
+}
+
+/* ─── Section ───────────────────────────────────────────────── */
+.af-section {
+  background: var(--surface);
+  padding: 1rem 1.25rem;
+}
+
+.af-section--grow {
+  flex: 1;
+}
+
+.af-section-title {
+  margin: 0 0 0.7rem 0;
+  font-size: 0.63rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ips-light);
+}
+
+/* ─── Fields grid ───────────────────────────────────────────── */
+.af-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem 1.25rem;
+}
+
+.af-fields--compact {
+  gap: 0.4rem 1.25rem;
+}
+
+.af-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.af-field--full {
+  grid-column: 1 / -1;
+}
+
+.af-label {
+  font-size: 0.63rem;
+  color: var(--label);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.af-value {
+  font-size: 0.85rem;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.af-value--success { color: var(--success); }
+.af-value--danger  { color: var(--danger); }
+.af-value--warning { color: var(--warning); }
+.af-value--muted   { color: var(--text-muted); font-style: italic; }
+
+/* ─── Fields 3-col variant ──────────────────────────────────── */
+.af-fields--3col {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+/* ─── Capacidades Diferentes strip ──────────────────────────── */
+.af-disc-strip {
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 0.85rem 1.25rem 1rem;
+}
+
+.af-disc-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.85rem;
+}
+
+.af-disc-title {
+  font-size: 0.63rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ips-light);
+}
+
+.af-disc-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  background: rgba(217, 119, 6, 0.1);
+  color: var(--warning);
+  border: 1px solid rgba(217, 119, 6, 0.25);
+}
+
+.af-disc-groups {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+
+.af-disc-group {
+  background: var(--surface-2);
+  padding: 0.75rem 1rem;
+}
+
+.af-disc-group-label {
+  display: block;
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  margin-bottom: 0.6rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ─── Credencial ─────────────────────────────────────────────── */
+.af-credencial-section {
+  flex-shrink: 0;
+}
+
+.af-credencial-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--ips-border);
+  border-radius: var(--r-sm);
+  background: var(--ips-subtle);
+}
+
+.af-credencial-num {
+  font-size: 0.92rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ips);
+  font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
+}
+
+.af-credencial-empty {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ─── Domicilios table ───────────────────────────────────────── */
+.af-dom-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.af-dom-table thead tr th {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--label);
+  font-weight: 600;
+  padding: 0 0 0.4rem 0;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  padding-right: 0.75rem;
+}
+
+.af-dom-table tbody tr td {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  padding: 0.35rem 0.75rem 0.35rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.af-dom-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ─── Teléfonos table ────────────────────────────────────────── */
+.af-tel-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.af-tel-table thead tr th {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--label);
+  font-weight: 600;
+  padding: 0 0.5rem 0.4rem 0;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.af-tel-table tbody tr td {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  padding: 0.35rem 0.5rem 0.35rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.af-tel-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ─── Coberturas table ──────────────────────────────────────── */
+.af-cob-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.af-cob-table thead tr th {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--label);
+  font-weight: 600;
+  padding: 0 0 0.4rem 0;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.af-cob-table thead tr th:not(:first-child) {
+  text-align: right;
+}
+
+.af-cob-table tbody tr td {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.af-cob-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.af-cob-table tbody tr td:not(:first-child) {
+  text-align: right;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Contact strip ─────────────────────────────────────────── */
+.af-contact-strip {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+}
+
+.af-domicilio-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.4rem 0;
+}
+
+.af-domicilio-row + .af-domicilio-row {
+  border-top: 1px solid var(--border);
+  padding-top: 0.4rem;
+}
+
+.af-dom-calle {
+  font-size: 0.85rem;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.af-dom-loc {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.af-dom-cp {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.af-contact-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.af-contact-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.08rem;
+}
+
+.af-contact-tipo {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--label);
+}
+
+.af-contact-valor {
+  font-size: 0.85rem;
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* ─── Empty / OBS ───────────────────────────────────────────── */
+.af-empty {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.af-obs-text {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* ─── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 720px) {
+  .af-body,
+  .af-contact-strip,
+  .af-disc-groups {
+    grid-template-columns: 1fr;
+  }
+
+  .af-header {
+    flex-wrap: wrap;
+  }
+}
