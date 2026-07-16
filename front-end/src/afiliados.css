@@ -1,9 +1,112 @@
+/* ─── Page wrapper ───────────────────────────────────────────── */
+.af-page {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 1.25rem 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ─── Toolbar (search + edit) ───────────────────────────────── */
+.af-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.af-search-form {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.af-search-wrap {
+  position: relative;
+  flex: 1;
+  max-width: 420px;
+}
+
+.af-search-icon {
+  position: absolute;
+  left: 0.7rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: var(--label);
+  pointer-events: none;
+}
+
+.af-search-input {
+  width: 100%;
+  padding: 0.5rem 0.85rem 0.5rem 2.25rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.af-search-input::placeholder {
+  color: var(--label);
+}
+
+.af-search-input:focus {
+  border-color: var(--ips);
+}
+
+.af-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: inherit;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.af-btn--primary {
+  background: var(--ips);
+  color: #fff;
+  border: 1px solid var(--ips);
+}
+
+.af-btn--primary:hover {
+  filter: brightness(1.1);
+}
+
+.af-btn--outline {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.af-btn--outline:hover {
+  border-color: var(--ips);
+  color: var(--ips);
+}
+
 /* ─── Panel wrapper ─────────────────────────────────────────── */
 .af-panel {
   display: flex;
   flex-direction: column;
-  max-width: 1080px;
-  margin: 0 auto;
   border-radius: var(--r-lg);
   overflow: hidden;
   border: 1px solid var(--border);

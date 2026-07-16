@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import './globales.css';
 import './afiliados.css';
 import logoSiglas from './logo-siglas.svg';
@@ -199,9 +200,45 @@ function initials(nombre: string, apellido: string): string {
 /* ─── Component ──────────────────────────────────────────────── */
 export default function Afiliados() {
   const af = MOCK;
+  const [busqueda, setBusqueda] = useState('');
+
+  function handleBuscar(e: React.FormEvent) {
+    e.preventDefault();
+    // TODO: conectar con backend — buscar por DNI o nombre
+    console.log('Buscar:', busqueda);
+  }
 
   return (
-    <div className="af-panel">
+    <div className="af-page">
+
+      {/* ── BARRA DE BÚSQUEDA ── */}
+      <div className="af-toolbar">
+        <form className="af-search-form" onSubmit={handleBuscar}>
+          <div className="af-search-wrap">
+            <svg className="af-search-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.7"/>
+              <path d="M13.5 13.5L17 17" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/>
+            </svg>
+            <input
+              className="af-search-input"
+              type="text"
+              placeholder="Buscar por DNI o nombre..."
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+          <button type="submit" className="af-btn af-btn--primary">Buscar</button>
+        </form>
+        <button type="button" className="af-btn af-btn--outline">
+          <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" width="15" height="15">
+            <path d="M13.586 3.586a2 2 0 1 1 2.828 2.828l-8.5 8.5a2 2 0 0 1-.828.5l-3 .75a.5.5 0 0 1-.621-.621l.75-3a2 2 0 0 1 .5-.828l8.5-8.5z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          Editar
+        </button>
+      </div>
+
+      <div className="af-panel">
 
       {/* ── HEADER ── */}
       <header className="af-header">
@@ -541,6 +578,8 @@ export default function Afiliados() {
             </div>
           )}
         </section>
+
+      </div>
 
       </div>
 
