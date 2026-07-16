@@ -29,7 +29,7 @@ function App() {
           <img src={logoNombre} className="login-logo" alt="Obra Social IPS" />
         </div>
         <div className="login-card-body">
-          <p className="login-subtitle">Consola de Control</p>
+          <p className="login-subtitle">Derivaciones</p>
           <form className="login-form" onSubmit={handleSubmit}>
             <div className="login-field">
               <label className="login-label">Usuario</label>

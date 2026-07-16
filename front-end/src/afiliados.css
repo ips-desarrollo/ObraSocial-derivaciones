@@ -385,6 +385,12 @@
   border-bottom: none;
 }
 
+.af-dom-col--calle { width: 30%; }
+.af-dom-col--num   { width: 7%; white-space: nowrap; }
+.af-dom-col--sm    { width: 5%; white-space: nowrap; }
+.af-dom-col--loc   { width: 20%; }
+.af-dom-col--cp    { width: 8%; white-space: nowrap; }
+
 /* ─── Teléfonos table ────────────────────────────────────────── */
 .af-tel-table {
   width: 100%;
@@ -455,7 +461,7 @@
 /* ─── Contact strip ─────────────────────────────────────────── */
 .af-contact-strip {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 1px;
   background: var(--border);
 }
@@ -528,12 +534,146 @@
   line-height: 1.6;
 }
 
+/* ─── Header inline edit ─────────────────────────────────────── */
+.af-hdr-sep {
+  color: var(--ips-light);
+}
+
+.af-hdr-inline {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  outline: none;
+  color: inherit;
+  font: inherit;
+  padding: 0 2px 1px;
+  min-width: 100px;
+  transition: border-color 0.15s;
+}
+
+.af-hdr-inline:hover {
+  border-bottom-color: rgba(255, 255, 255, 0.6);
+}
+
+.af-hdr-inline:focus {
+  border-bottom-color: var(--ips-light);
+}
+
+.af-hdr-inline::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.af-hdr-inline option {
+  background: #ffffff;
+  color: var(--text);
+}
+
+.af-hdr-inline--sm {
+  font-size: 0.7rem;
+  min-width: 50px;
+}
+
+/* ─── Edit mode ─────────────────────────────────────────────── */
+.af-panel--editing {
+  outline: 2px solid var(--ips-border);
+  outline-offset: 2px;
+}
+
+.af-toolbar-edit-btns {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.af-btn--cancel {
+  background: var(--surface);
+  color: var(--danger);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: inherit;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.af-btn--cancel:hover {
+  background: var(--danger-bg);
+  border-color: var(--danger);
+}
+
+.af-edit-input,
+.af-edit-select,
+.af-edit-textarea {
+  width: 100%;
+  padding: 0.22rem 0.45rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  font-family: inherit;
+  color: var(--text);
+  background: #eef1f8;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  outline: none;
+  box-sizing: border-box;
+  line-height: 1.4;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.af-edit-input:hover,
+.af-edit-select:hover,
+.af-edit-textarea:hover {
+  background: #dde2f0;
+  border-color: var(--border-hover);
+}
+
+.af-edit-input:focus,
+.af-edit-select:focus,
+.af-edit-textarea:focus {
+  border-color: var(--ips);
+  background: var(--surface);
+  box-shadow: 0 0 0 2px var(--ips-subtle);
+}
+
+.af-edit-textarea {
+  resize: vertical;
+  min-height: 64px;
+}
+
+.af-edit-select {
+  appearance: auto;
+  cursor: pointer;
+}
+
+/* inputs dentro de celdas de tabla */
+.af-dom-table td .af-edit-input,
+.af-tel-table td .af-edit-input,
+.af-cob-table td .af-edit-input {
+  font-size: 0.78rem;
+  padding: 0.18rem 0.38rem;
+  min-width: 60px;
+}
+
+.af-cob-date-cell {
+  text-align: right;
+}
+
 /* ─── Responsive ─────────────────────────────────────────────── */
 @media (max-width: 720px) {
   .af-body,
   .af-contact-strip,
   .af-disc-groups {
     grid-template-columns: 1fr;
+  }
+
+  .af-dom-table {
+    display: block;
+    overflow-x: auto;
   }
 
   .af-header {
