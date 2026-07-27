@@ -22,6 +22,7 @@ back-end/.env
 
 # Environment & Private files (General)
 .env
+*.example
 .env.local
 .env.*.local
 .env.backup
@@ -40,3 +41,8 @@ back-end/.env
 # OS Files
 .DS_Store
 Thumbs.db
+
+# Database Backups
+BD/*.bak
+*.bak
+

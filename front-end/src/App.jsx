@@ -10,7 +10,7 @@ function App() {
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setError(null)
     if (!usuario.trim() || !password.trim()) {
@@ -18,8 +18,26 @@ function App() {
       return
     }
     setLoading(true)
-    // TODO: integrar con el endpoint de autenticación
-    setTimeout(() => navigate('/afiliados'), 800)
+    try {
+      const API = import.meta.env.VITE_API_URL || '/api'
+      const res = await fetch(`${API}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: usuario.trim(), password: password }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.detail || 'Error al iniciar sesión')
+        setLoading(false)
+        return
+      }
+      localStorage.setItem('token', data.token)
+      localStorage.setItem('usuario', JSON.stringify(data.usuario))
+      navigate('/afiliados')
+    } catch {
+      setError('No se pudo conectar con el servidor')
+      setLoading(false)
+    }
   }
 
   return (

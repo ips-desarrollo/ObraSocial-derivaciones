@@ -1,0 +1,86 @@
+/* ─── NavBar ─────────────────────────────────────────────────── */
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.6rem 1.5rem;
+  background: linear-gradient(180deg, var(--login-dark) 0%, #1a2544 100%);
+  box-shadow: var(--shadow), inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+/* Marca: logo + título */
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  text-decoration: none;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--r);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.nav-brand:hover {
+  background: rgba(255, 255, 255, 0.05);
+  transform: translateY(-1px);
+}
+
+.nav-logo {
+  height: 34px;
+  width: auto;
+  filter: brightness(0) invert(1)
+    drop-shadow(0 0 8px rgba(90, 116, 186, 0.7));
+  transition: filter 0.2s ease;
+}
+
+.nav-brand:hover .nav-logo {
+  filter: brightness(0) invert(1)
+    drop-shadow(0 0 14px rgba(122, 150, 220, 0.95));
+}
+
+.nav-title {
+  font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #fff;
+}
+
+/* Enlaces */
+.nav-link {
+  position: relative;
+  font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+  color: rgba(255, 255, 255, 0.7);
+  padding: 0.5rem 0.9rem;
+  border-radius: var(--r);
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.nav-link:hover {
+  color: #fff;
+  transform: translateY(-2px) scale(1.06);
+}
+
+/* Enlace activo: subrayado luminoso */
+.nav-link.active {
+  color: #fff;
+}
+
+.nav-link.active::after {
+  content: '';
+  position: absolute;
+  left: 0.9rem;
+  right: 0.9rem;
+  bottom: 0.15rem;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--ips-light);
+  box-shadow: 0 0 8px var(--ips-light);
+}

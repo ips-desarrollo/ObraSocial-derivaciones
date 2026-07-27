@@ -5,7 +5,7 @@
   gap: 0.75rem;
   max-width: 1080px;
   margin: 0 auto;
-  padding: 1.25rem 0;
+  padding: 1.25rem;
   width: 100%;
   box-sizing: border-box;
 }
@@ -33,6 +33,11 @@
   position: relative;
   flex: 1;
   max-width: 420px;
+}
+
+.af-search-wrap--dni {
+  flex: 0 0 auto;
+  max-width: 200px;
 }
 
 .af-search-icon {
@@ -66,6 +71,61 @@
 
 .af-search-input:focus {
   border-color: var(--ips);
+}
+
+/* ─── Search dropdown ────────────────────────────────────────── */
+.af-search-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-lg);
+  list-style: none;
+  margin: 0;
+  padding: 0.25rem 0;
+  z-index: 100;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.af-search-dropdown-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.85rem;
+  cursor: pointer;
+  gap: 1rem;
+}
+
+.af-search-dropdown-item:hover,
+.af-search-dropdown-item--active {
+  background: var(--ips-light, rgba(0,86,179,0.08));
+}
+
+.af-search-nombre {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.af-search-doc {
+  font-size: 0.78rem;
+  color: var(--label);
+  white-space: nowrap;
+}
+
+.af-search-dropdown-empty,
+.af-search-dropdown-error {
+  padding: 0.5rem 0.85rem;
+  font-size: 0.85rem;
+  color: var(--label);
+}
+
+.af-search-dropdown-error {
+  color: var(--danger, #c0392b);
 }
 
 .af-btn {
@@ -123,7 +183,7 @@
   align-items: center;
   gap: 1.25rem;
   padding: 1.5rem 1.75rem 1.5rem 2rem;
-  background: #0f172a;
+  background: #1e2e53;
   overflow: hidden;
 }
 
@@ -132,10 +192,10 @@
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse 55% 120% at 85% 50%,  rgba(90, 116, 186, 0.42) 0%, transparent 70%),
-    radial-gradient(ellipse 40% 100% at 10% 10%,  rgba(68, 92, 164, 0.35) 0%, transparent 65%),
-    radial-gradient(ellipse 35% 90%  at 50% 110%, rgba(46, 64, 128, 0.38) 0%, transparent 60%),
-    radial-gradient(ellipse 30% 80%  at 95% 0%,   rgba(90, 116, 186, 0.28) 0%, transparent 55%);
+    radial-gradient(ellipse 55% 120% at 85% 50%, rgba(90, 116, 186, 0.42) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 100% at 10% 10%, rgba(68, 92, 164, 0.35) 0%, transparent 65%),
+    radial-gradient(ellipse 35% 90% at 50% 110%, rgba(46, 64, 128, 0.38) 0%, transparent 60%),
+    radial-gradient(ellipse 30% 80% at 95% 0%, rgba(90, 116, 186, 0.28) 0%, transparent 55%);
   pointer-events: none;
 }
 
@@ -160,7 +220,7 @@
   margin: 0;
   font-size: 1.5rem;
   font-weight: 800;
-  color: var(--ips-light);
+  color: white;
   line-height: 1.2;
   letter-spacing: -0.01em;
   white-space: nowrap;
@@ -200,12 +260,14 @@
   flex-direction: column;
   gap: 1px;
   background: var(--border);
+  min-width: 0;
 }
 
 /* ─── Section ───────────────────────────────────────────────── */
 .af-section {
   background: var(--surface);
   padding: 1rem 1.25rem;
+  min-width: 0;
 }
 
 .af-section--grow {
@@ -214,11 +276,11 @@
 
 .af-section-title {
   margin: 0 0 0.7rem 0;
-  font-size: 0.63rem;
+  font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  color: var(--ips-light);
+  color: var(--ips);
 }
 
 /* ─── Fields grid ───────────────────────────────────────────── */
@@ -243,22 +305,35 @@
 }
 
 .af-label {
-  font-size: 0.63rem;
+  font-size: 0.72rem;
+  font-weight: 600;
   color: var(--label);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 
 .af-value {
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   color: var(--text);
   font-weight: 500;
 }
 
-.af-value--success { color: var(--success); }
-.af-value--danger  { color: var(--danger); }
-.af-value--warning { color: var(--warning); }
-.af-value--muted   { color: var(--text-muted); font-style: italic; }
+.af-value--success {
+  color: var(--success);
+}
+
+.af-value--danger {
+  color: var(--danger);
+}
+
+.af-value--warning {
+  color: var(--warning);
+}
+
+.af-value--muted {
+  color: var(--text-muted);
+  font-style: italic;
+}
 
 /* ─── Fields 3-col variant ──────────────────────────────────── */
 .af-fields--3col {
@@ -280,11 +355,11 @@
 }
 
 .af-disc-title {
-  font-size: 0.63rem;
+  font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  color: var(--ips-light);
+  color: var(--ips);
 }
 
 .af-disc-badge {
@@ -301,7 +376,7 @@
 
 .af-disc-groups {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 1px;
   background: var(--border);
   border-radius: var(--r-sm);
@@ -315,11 +390,11 @@
 
 .af-disc-group-label {
   display: block;
-  font-size: 0.6rem;
+  font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   margin-bottom: 0.6rem;
   padding-bottom: 0.4rem;
   border-bottom: 1px solid var(--border);
@@ -328,6 +403,58 @@
 /* ─── Credencial ─────────────────────────────────────────────── */
 .af-credencial-section {
   flex-shrink: 0;
+}
+
+/* ─── Tarjetas destacadas: DNI / CUIL / Credencial ───────────── */
+.af-id-cards {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.6rem;
+}
+
+.af-id-card {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--ips-border);
+  border-radius: var(--r-md);
+  background: var(--ips-subtle);
+}
+
+.af-id-card--credencial {
+  border-color: var(--ips);
+  background:
+    linear-gradient(135deg, var(--ips-subtle), rgba(90, 116, 186, 0.16));
+  box-shadow: 0 1px 6px rgba(68, 92, 164, 0.15);
+}
+
+.af-id-card-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ips);
+}
+
+.af-id-card-value {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.af-id-card-value--credencial {
+  font-size: 1.1rem;
+  letter-spacing: 0.06em;
+  color: var(--ips);
 }
 
 .af-credencial-box {
@@ -362,7 +489,7 @@
 }
 
 .af-dom-table thead tr th {
-  font-size: 0.62rem;
+  font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.07em;
   color: var(--label);
@@ -375,7 +502,7 @@
 }
 
 .af-dom-table tbody tr td {
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   color: var(--text-secondary);
   padding: 0.35rem 0.75rem 0.35rem 0;
   border-bottom: 1px solid var(--border);
@@ -385,11 +512,28 @@
   border-bottom: none;
 }
 
-.af-dom-col--calle { width: 30%; }
-.af-dom-col--num   { width: 7%; white-space: nowrap; }
-.af-dom-col--sm    { width: 5%; white-space: nowrap; }
-.af-dom-col--loc   { width: 20%; }
-.af-dom-col--cp    { width: 8%; white-space: nowrap; }
+.af-dom-col--calle {
+  width: 30%;
+}
+
+.af-dom-col--num {
+  width: 7%;
+  white-space: nowrap;
+}
+
+.af-dom-col--sm {
+  width: 5%;
+  white-space: nowrap;
+}
+
+.af-dom-col--loc {
+  width: 20%;
+}
+
+.af-dom-col--cp {
+  width: 8%;
+  white-space: nowrap;
+}
 
 /* ─── Teléfonos table ────────────────────────────────────────── */
 .af-tel-table {
@@ -398,7 +542,7 @@
 }
 
 .af-tel-table thead tr th {
-  font-size: 0.62rem;
+  font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.07em;
   color: var(--label);
@@ -410,7 +554,7 @@
 }
 
 .af-tel-table tbody tr td {
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   color: var(--text-secondary);
   padding: 0.35rem 0.5rem 0.35rem 0;
   border-bottom: 1px solid var(--border);
@@ -427,7 +571,7 @@
 }
 
 .af-cob-table thead tr th {
-  font-size: 0.62rem;
+  font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.07em;
   color: var(--label);
@@ -442,7 +586,7 @@
 }
 
 .af-cob-table tbody tr td {
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   color: var(--text-secondary);
   padding: 0.35rem 0;
   border-bottom: 1px solid var(--border);
@@ -473,7 +617,7 @@
   padding: 0.4rem 0;
 }
 
-.af-domicilio-row + .af-domicilio-row {
+.af-domicilio-row+.af-domicilio-row {
   border-top: 1px solid var(--border);
   padding-top: 0.4rem;
 }
@@ -507,14 +651,15 @@
 }
 
 .af-contact-tipo {
-  font-size: 0.62rem;
+  font-size: 0.72rem;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.07em;
   color: var(--label);
 }
 
 .af-contact-valor {
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   color: var(--text);
   font-weight: 500;
 }
@@ -522,16 +667,18 @@
 /* ─── Empty / OBS ───────────────────────────────────────────── */
 .af-empty {
   margin: 0;
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   color: var(--text-muted);
   font-style: italic;
 }
 
 .af-obs-text {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   color: var(--text-secondary);
   line-height: 1.6;
+  word-break: break-all;
+  overflow-wrap: break-word;
 }
 
 /* ─── Header inline edit ─────────────────────────────────────── */
@@ -643,6 +790,8 @@
 .af-edit-textarea {
   resize: vertical;
   min-height: 64px;
+  word-break: break-all;
+  overflow-wrap: break-word;
 }
 
 .af-edit-select {
@@ -665,6 +814,7 @@
 
 /* ─── Responsive ─────────────────────────────────────────────── */
 @media (max-width: 720px) {
+
   .af-body,
   .af-contact-strip,
   .af-disc-groups {
@@ -679,4 +829,55 @@
   .af-header {
     flex-wrap: wrap;
   }
+}
+/* ─── Modal de confirmación ──────────────────────────────────── */
+.af-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.af-modal {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+  padding: 1.5rem 1.75rem;
+  max-width: 380px;
+  width: 100%;
+  text-align: center;
+}
+
+.af-modal-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #1a2b4a;
+}
+
+.af-modal-text {
+  margin: 0 0 1.25rem;
+  color: #374151;
+  font-size: 0.95rem;
+}
+
+.af-modal-error {
+  margin: -0.5rem 0 1rem;
+  color: #b91c1c;
+  font-size: 0.85rem;
+}
+
+.af-modal-btns {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.af-modal-btns .af-btn {
+  min-width: 90px;
+  justify-content: center;
 }
