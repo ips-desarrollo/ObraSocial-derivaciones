@@ -27,6 +27,7 @@
   align-items: center;
   gap: 0.5rem;
   flex: 1;
+  position: relative;
 }
 
 .af-search-wrap {
@@ -126,6 +127,21 @@
 
 .af-search-dropdown-error {
   color: var(--danger, #c0392b);
+}
+
+.af-search-dropdown--below-form {
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+}
+
+.af-btn--buscar {
+  flex-shrink: 0;
+}
+
+.af-btn--buscar:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .af-btn {
@@ -646,8 +662,52 @@
 
 .af-contact-item {
   display: flex;
-  flex-direction: column;
-  gap: 0.08rem;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.af-add-btns {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.af-btn--add {
+  background: transparent;
+  color: var(--ips);
+  border: 1px dashed var(--ips);
+  font-size: 0.8rem;
+  padding: 0.35rem 0.75rem;
+}
+
+.af-btn--add:hover {
+  background: var(--ips);
+  color: #fff;
+  border-style: solid;
+}
+
+.af-btn-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  font-size: 0.75rem;
+  font-family: inherit;
+  background: transparent;
+  color: var(--label);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.af-btn-remove:hover {
+  background: #e74c3c;
+  color: #fff;
+  border-color: #e74c3c;
 }
 
 .af-contact-tipo {

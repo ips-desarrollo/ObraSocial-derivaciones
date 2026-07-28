@@ -180,8 +180,10 @@ def login(datos: LoginRequest):
 
 @app.post("/crear-usuario")
 def crear_usuario(datos: CrearUsuarioRequest, token: str | None = Depends(oauth2_scheme)):
+    uid, uemail = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
     try:
-        uid, uemail = _extraer_usuario(token)
         pg = get_pg_connection()
         pg.autocommit = False
         cur = pg.cursor()
@@ -693,9 +695,12 @@ def obtener_afiliado(documento: int):
             },
             "domicilios": domicilios,
             "telefonos": [
-                {"numero": num}
-                for num in ((row[30] or "").strip(), (row[31] or "").strip())
-                if num
+                entry
+                for entry in (
+                    {"numero": (row[30] or "").strip(), "tipo": "telefono"},
+                    {"numero": (row[31] or "").strip(), "tipo": "celular"},
+                )
+                if entry["numero"]
             ],
             "emails": [
                 {"descripcion": mail}
@@ -851,14 +856,24 @@ def _registrar_auditoria(documento: int, antes: dict, despues: dict,
 
 @app.put("/afiliados/{documento}")
 def actualizar_afiliado(documento: int, datos: dict = Body(...), token: str | None = Depends(oauth2_scheme)):
+    uid, uemail = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
     try:
         fechas = datos.get("fechas") or {}
         laborales = datos.get("laborales") or {}
         telefonos = datos.get("telefonos") or []
         emails = datos.get("emails") or []
 
-        tel1 = _to_str(telefonos[0].get("numero")) if len(telefonos) > 0 else None
-        tel2 = _to_str(telefonos[1].get("numero")) if len(telefonos) > 1 else None
+        tel1 = None
+        tel2 = None
+        for t in telefonos:
+            tipo = (t.get("tipo") or "").lower()
+            num = _to_str(t.get("numero"))
+            if tipo == "celular":
+                tel2 = num
+            else:
+                tel1 = num
         email1 = _to_str(emails[0].get("descripcion")) if len(emails) > 0 else None
 
         tipo_doc_txt = str(datos.get("tipo_documento") or "").strip().upper()
@@ -976,7 +991,6 @@ def actualizar_afiliado(documento: int, datos: dict = Body(...), token: str | No
             "email": email1,
         }
 
-        uid, uemail = _extraer_usuario(token)
         _registrar_auditoria(documento, antes, despues_vals, uid, uemail)
 
         return {"ok": True, "documento": documento}

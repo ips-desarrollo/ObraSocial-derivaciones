@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import NavBar from './NavBar';
 import logoSiglas from './logo-siglas.svg';
+import { fetchAuth, verificarSesion, API } from './auth';
 import './globales.css';
 import './usuarios.css';
-
-const API = import.meta.env.VITE_API_URL || '/api';
 
 interface Usuario {
   id: number;
@@ -37,16 +36,6 @@ const emptyForm: FormData = {
   roles: ['operador'],
 };
 
-function getToken() {
-  return localStorage.getItem('token') || '';
-}
-
-function headers() {
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${getToken()}`,
-  };
-}
 
 function roleBadgeClass(rol: string) {
   if (rol === 'admin') return 'us-badge us-badge--admin';
@@ -68,8 +57,9 @@ export default function Usuarios() {
   const [saving, setSaving] = useState(false);
 
   const cargarUsuarios = useCallback(async () => {
+    if (!verificarSesion()) return;
     try {
-      const res = await fetch(`${API}/usuarios`, { headers: headers() });
+      const res = await fetchAuth(`${API}/usuarios`);
       if (!res.ok) throw new Error('Error al cargar usuarios');
       setUsuarios(await res.json());
     } catch (e: any) {
@@ -80,8 +70,9 @@ export default function Usuarios() {
   }, []);
 
   const cargarRoles = useCallback(async () => {
+    if (!verificarSesion()) return;
     try {
-      const res = await fetch(`${API}/roles`, { headers: headers() });
+      const res = await fetchAuth(`${API}/roles`);
       if (!res.ok) return;
       setRoles(await res.json());
     } catch {}
@@ -168,9 +159,8 @@ export default function Usuarios() {
           activo: form.activo,
           roles: form.roles,
         };
-        res = await fetch(`${API}/crear-usuario`, {
+        res = await fetchAuth(`${API}/crear-usuario`, {
           method: 'POST',
-          headers: headers(),
           body: JSON.stringify(body),
         });
       } else {
@@ -198,9 +188,8 @@ export default function Usuarios() {
           return;
         }
 
-        res = await fetch(`${API}/usuarios/${editId}`, {
+        res = await fetchAuth(`${API}/usuarios/${editId}`, {
           method: 'PUT',
-          headers: headers(),
           body: JSON.stringify(body),
         });
       }
@@ -225,9 +214,8 @@ export default function Usuarios() {
     setSaving(true);
     setModalError('');
     try {
-      const res = await fetch(`${API}/usuarios/${deleteTarget.id}`, {
+      const res = await fetchAuth(`${API}/usuarios/${deleteTarget.id}`, {
         method: 'DELETE',
-        headers: headers(),
       });
       const data = await res.json();
       if (!res.ok) {

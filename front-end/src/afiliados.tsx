@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import NavBar from './NavBar';
+import { fetchAuth, verificarSesion, API } from './auth';
 import './globales.css';
 import './afiliados.css';
 import logoSiglas from './logo-siglas.svg';
@@ -45,6 +46,7 @@ interface TelefonoData {
   cod_area: string;
   numero: string;
   compania: string;
+  tipo: 'telefono' | 'celular';
 }
 
 interface EmailData {
@@ -192,8 +194,6 @@ interface ResultadoBusqueda {
   documento: number;
 }
 
-const API = import.meta.env.VITE_API_URL || '/api';
-
 /* ─── Render helpers (fuera del componente para identidad estable) ── */
 const EI = ({
   value, onChange, type = 'text', placeholder,
@@ -259,10 +259,11 @@ export default function Afiliados() {
   const [guardando, setGuardando] = useState(false);
   const [errorGuardar, setErrorGuardar] = useState<string | null>(null);
   const [empleadores, setEmpleadores] = useState<EmpleadorOption[]>([]);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [buscando, setBuscando] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    verificarSesion();
     fetch(`${API}/empleadores`)
       .then(r => r.json())
       .then(data => { if (Array.isArray(data)) setEmpleadores(data); })
@@ -323,6 +324,17 @@ export default function Afiliados() {
       emails[i] = { ...emails[i], ...patch };
       return { ...d, emails };
     });
+  const addTel = (tipo: 'telefono' | 'celular') =>
+    setDraft(d => ({
+      ...d,
+      telefonos: [...d.telefonos, { cod_area: '', numero: '', compania: '', tipo }],
+    }));
+  const removeTel = (i: number) =>
+    setDraft(d => ({ ...d, telefonos: d.telefonos.filter((_, idx) => idx !== i) }));
+  const addEmail = () =>
+    setDraft(d => ({ ...d, emails: [...d.emails, { descripcion: '' }] }));
+  const removeEmail = (i: number) =>
+    setDraft(d => ({ ...d, emails: d.emails.filter((_, idx) => idx !== i) }));
   const updCob = (i: number, patch: Partial<CoberturaData>) =>
     setDraft(d => {
       const cobs = [...d.coberturas];
@@ -347,15 +359,12 @@ export default function Afiliados() {
 
   /* El usuario marcó "Sí": impacta los cambios en la base de datos. */
   async function confirmarGuardar() {
+    if (!verificarSesion()) return;
     setGuardando(true);
     setErrorGuardar(null);
     try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      const tk = localStorage.getItem('token');
-      if (tk) headers['Authorization'] = `Bearer ${tk}`;
-      const res = await fetch(`${API}/afiliados/${af.documento}`, {
+      const res = await fetchAuth(`${API}/afiliados/${af.documento}`, {
         method: 'PUT',
-        headers,
         body: JSON.stringify(draft),
       });
       const data = await res.json();
@@ -373,9 +382,16 @@ export default function Afiliados() {
     }
   }
 
-  async function buscar(q: string, campo: 'nombre' | 'dni') {
-    if (q.trim().length < 2) { setResultados([]); setCampoActivo(null); return; }
+  async function ejecutarBusqueda() {
+    const tieneNombre = busquedaNombre.trim().length >= 2;
+    const tieneDni = busquedaDni.trim().length >= 2;
+    if (!tieneNombre && !tieneDni) return;
+
+    const campo = tieneDni ? 'dni' : 'nombre';
+    const q = tieneDni ? busquedaDni : busquedaNombre;
+
     setErrorBusqueda(null);
+    setBuscando(true);
     try {
       const res = await fetch(
         `${API}/afiliados/buscar?q=${encodeURIComponent(q.trim())}&campo=${campo}`
@@ -388,53 +404,41 @@ export default function Afiliados() {
     } catch {
       setErrorBusqueda('No se pudo conectar con el servidor.');
       setCampoActivo(campo);
-    }
-  }
-
-  // Programa la búsqueda automática (con debounce) para el campo indicado.
-  function programarBusqueda(val: string, campo: 'nombre' | 'dni') {
-    setErrorBusqueda(null);
-    setIndiceActivo(-1);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (val.trim().length >= 2) {
-      setCampoActivo(campo);
-      debounceRef.current = setTimeout(() => buscar(val, campo), 250);
-    } else {
-      setResultados([]);
-      setCampoActivo(null);
+    } finally {
+      setBuscando(false);
     }
   }
 
   function handleChangeNombre(e: React.ChangeEvent<HTMLInputElement>) {
-    const val = e.target.value;
-    setBusquedaNombre(val);
-    programarBusqueda(val, 'nombre');
+    setBusquedaNombre(e.target.value);
   }
 
   function handleChangeDni(e: React.ChangeEvent<HTMLInputElement>) {
-    const val = e.target.value.replace(/\D/g, ''); // solo dígitos
-    setBusquedaDni(val);
-    programarBusqueda(val, 'dni');
+    setBusquedaDni(e.target.value.replace(/\D/g, ''));
   }
 
-  /* Flechas ↑/↓ para navegar el desplegable, Enter para seleccionar, Esc para cerrar. */
-  function handleKeyDownBusqueda(e: React.KeyboardEvent<HTMLInputElement>, campo: 'nombre' | 'dni') {
-    if (campoActivo !== campo) return;
-    if (e.key === 'ArrowDown') {
-      if (resultados.length === 0) return;
+  function handleKeyDownBusqueda(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') {
       e.preventDefault();
-      setIndiceActivo(i => (i + 1) % resultados.length);
-    } else if (e.key === 'ArrowUp') {
-      if (resultados.length === 0) return;
-      e.preventDefault();
-      setIndiceActivo(i => (i <= 0 ? resultados.length - 1 : i - 1));
-    } else if (e.key === 'Enter') {
-      const sel = indiceActivo >= 0 ? resultados[indiceActivo] : resultados[0];
-      if (sel) { e.preventDefault(); seleccionarAfiliado(sel); }
-    } else if (e.key === 'Escape') {
-      setCampoActivo(null);
-      setResultados([]);
-      setIndiceActivo(-1);
+      if (campoActivo && resultados.length > 0) {
+        const sel = indiceActivo >= 0 ? resultados[indiceActivo] : resultados[0];
+        if (sel) { seleccionarAfiliado(sel); return; }
+      }
+      ejecutarBusqueda();
+    } else if (campoActivo) {
+      if (e.key === 'ArrowDown') {
+        if (resultados.length === 0) return;
+        e.preventDefault();
+        setIndiceActivo(i => (i + 1) % resultados.length);
+      } else if (e.key === 'ArrowUp') {
+        if (resultados.length === 0) return;
+        e.preventDefault();
+        setIndiceActivo(i => (i <= 0 ? resultados.length - 1 : i - 1));
+      } else if (e.key === 'Escape') {
+        setCampoActivo(null);
+        setResultados([]);
+        setIndiceActivo(-1);
+      }
     }
   }
 
@@ -513,6 +517,7 @@ export default function Afiliados() {
               cod_area: '',
               numero: t.numero ?? '',
               compania: '',
+              tipo: (t.tipo as 'telefono' | 'celular') ?? 'telefono',
             }))
           : [],
         emails: Array.isArray(data.emails)
@@ -558,7 +563,6 @@ export default function Afiliados() {
       {/* ── BARRA DE BÚSQUEDA ── */}
       <div className="af-toolbar">
         <div className="af-search-form" ref={searchRef}>
-          {/* Campo: Nombre */}
           <div className="af-search-wrap">
             <svg className="af-search-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
               <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.7"/>
@@ -570,33 +574,11 @@ export default function Afiliados() {
               placeholder="Buscar por nombre..."
               value={busquedaNombre}
               onChange={handleChangeNombre}
-              onKeyDown={e => handleKeyDownBusqueda(e, 'nombre')}
+              onKeyDown={handleKeyDownBusqueda}
               autoComplete="off"
             />
-            {campoActivo === 'nombre' && (resultados.length > 0 || errorBusqueda || busquedaNombre.trim().length >= 2) && (
-              <ul className="af-search-dropdown">
-                {errorBusqueda && (
-                  <li className="af-search-dropdown-error">{errorBusqueda}</li>
-                )}
-                {resultados.length === 0 && !errorBusqueda && (
-                  <li className="af-search-dropdown-empty">Sin resultados</li>
-                )}
-                {resultados.map((r, idx) => (
-                  <li
-                    key={r.id_afiliado}
-                    className={`af-search-dropdown-item${indiceActivo === idx ? ' af-search-dropdown-item--active' : ''}`}
-                    onMouseDown={() => seleccionarAfiliado(r)}
-                    onMouseEnter={() => setIndiceActivo(idx)}
-                  >
-                    <span className="af-search-nombre">{nombreMostrar(r)}</span>
-                    <span className="af-search-doc">DNI {fmtDoc(r.documento)}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
           </div>
 
-          {/* Campo: DNI */}
           <div className="af-search-wrap af-search-wrap--dni">
             <svg className="af-search-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
               <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.7"/>
@@ -609,31 +591,45 @@ export default function Afiliados() {
               placeholder="Buscar por DNI..."
               value={busquedaDni}
               onChange={handleChangeDni}
-              onKeyDown={e => handleKeyDownBusqueda(e, 'dni')}
+              onKeyDown={handleKeyDownBusqueda}
               autoComplete="off"
             />
-            {campoActivo === 'dni' && (resultados.length > 0 || errorBusqueda || busquedaDni.trim().length >= 2) && (
-              <ul className="af-search-dropdown">
-                {errorBusqueda && (
-                  <li className="af-search-dropdown-error">{errorBusqueda}</li>
-                )}
-                {resultados.length === 0 && !errorBusqueda && (
-                  <li className="af-search-dropdown-empty">Sin resultados</li>
-                )}
-                {resultados.map((r, idx) => (
-                  <li
-                    key={r.id_afiliado}
-                    className={`af-search-dropdown-item${indiceActivo === idx ? ' af-search-dropdown-item--active' : ''}`}
-                    onMouseDown={() => seleccionarAfiliado(r)}
-                    onMouseEnter={() => setIndiceActivo(idx)}
-                  >
-                    <span className="af-search-nombre">{nombreMostrar(r)}</span>
-                    <span className="af-search-doc">DNI {fmtDoc(r.documento)}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
           </div>
+
+          <button
+            type="button"
+            className="af-btn af-btn--primary af-btn--buscar"
+            onClick={ejecutarBusqueda}
+            disabled={buscando || (busquedaNombre.trim().length < 2 && busquedaDni.trim().length < 2)}
+          >
+            <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" width="14" height="14">
+              <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.7"/>
+              <path d="M13.5 13.5L17 17" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/>
+            </svg>
+            {buscando ? 'Buscando…' : 'Buscar'}
+          </button>
+
+          {campoActivo && (resultados.length > 0 || errorBusqueda) && (
+            <ul className="af-search-dropdown af-search-dropdown--below-form">
+              {errorBusqueda && (
+                <li className="af-search-dropdown-error">{errorBusqueda}</li>
+              )}
+              {resultados.length === 0 && !errorBusqueda && (
+                <li className="af-search-dropdown-empty">Sin resultados</li>
+              )}
+              {resultados.map((r, idx) => (
+                <li
+                  key={r.id_afiliado}
+                  className={`af-search-dropdown-item${indiceActivo === idx ? ' af-search-dropdown-item--active' : ''}`}
+                  onMouseDown={() => seleccionarAfiliado(r)}
+                  onMouseEnter={() => setIndiceActivo(idx)}
+                >
+                  <span className="af-search-nombre">{nombreMostrar(r)}</span>
+                  <span className="af-search-doc">DNI {fmtDoc(r.documento)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         {editando ? (
@@ -1133,40 +1129,70 @@ export default function Afiliados() {
 
           <section className="af-section">
             <h3 className="af-section-title">Teléfonos</h3>
-            {draft.telefonos.length === 0 ? (
+            {draft.telefonos.length === 0 && !editando ? (
               <p className="af-empty">Sin teléfonos</p>
             ) : (
-              <table className="af-tel-table">
-                <thead>
-                  <tr>
-                    <th>Número</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {draft.telefonos.map((t, i) => (
-                    <tr key={i}>
-                      <td>{editando ? <EI value={t.numero} onChange={v => updTel(i, { numero: v })} /> : t.numero}</td>
+              <>
+                <table className="af-tel-table">
+                  <thead>
+                    <tr>
+                      <th>Tipo</th>
+                      <th>Número</th>
+                      {editando && <th></th>}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {draft.telefonos.map((t, i) => (
+                      <tr key={i}>
+                        <td>{t.tipo === 'celular' ? 'Celular' : 'Teléfono'}</td>
+                        <td>{editando ? <EI value={t.numero} onChange={v => updTel(i, { numero: v })} /> : t.numero}</td>
+                        {editando && (
+                          <td>
+                            <button type="button" className="af-btn-remove" title="Quitar" onClick={() => removeTel(i)}>✕</button>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {editando && (
+                  <div className="af-add-btns">
+                    {!draft.telefonos.some(t => t.tipo === 'telefono') && (
+                      <button type="button" className="af-btn af-btn--add" onClick={() => addTel('telefono')}>+ Teléfono</button>
+                    )}
+                    {!draft.telefonos.some(t => t.tipo === 'celular') && (
+                      <button type="button" className="af-btn af-btn--add" onClick={() => addTel('celular')}>+ Celular</button>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </section>
 
           <section className="af-section">
             <h3 className="af-section-title">Correos Electrónicos</h3>
-            {draft.emails.length === 0 ? (
+            {draft.emails.length === 0 && !editando ? (
               <p className="af-empty">Sin correos registrados</p>
             ) : (
-              <div className="af-contact-list">
-                {draft.emails.map((e, i) => (
-                  <div key={i} className="af-contact-item">
-                    {editando
-                      ? <EI value={e.descripcion} onChange={v => updEmail(i, { descripcion: v })} />
-                      : <span className="af-contact-valor">{e.descripcion}</span>}
+              <>
+                <div className="af-contact-list">
+                  {draft.emails.map((e, i) => (
+                    <div key={i} className="af-contact-item">
+                      {editando
+                        ? <>
+                            <EI value={e.descripcion} onChange={v => updEmail(i, { descripcion: v })} />
+                            <button type="button" className="af-btn-remove" title="Quitar" onClick={() => removeEmail(i)}>✕</button>
+                          </>
+                        : <span className="af-contact-valor">{e.descripcion}</span>}
+                    </div>
+                  ))}
+                </div>
+                {editando && draft.emails.length === 0 && (
+                  <div className="af-add-btns">
+                    <button type="button" className="af-btn af-btn--add" onClick={addEmail}>+ Correo Electrónico</button>
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </section>
 
