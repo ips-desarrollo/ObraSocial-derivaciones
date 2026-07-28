@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import NavBar from './NavBar';
-import { fetchAuth, verificarSesion, API } from './auth';
+import { fetchAuth, verificarSesion, API } from '../auth';
 import './globales.css';
 import './afiliados.css';
-import logoSiglas from './logo-siglas.svg';
+import logoSiglas from '../multimedia/logo-siglas.svg';
 
 /* ─── Types ──────────────────────────────────────────────────── */
 interface FechasAfiliado {
@@ -658,7 +658,6 @@ export default function Afiliados() {
 
         {/* ── HEADER ── */}
         <header className="af-header">
-          <img src={logoSiglas} alt="IPS" className="af-logo" />
           <div className="af-identity">
 
             <h1 className="af-name">

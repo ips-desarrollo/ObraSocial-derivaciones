@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import logoSiglas from './logo-siglas.svg';
+import logoSiglas from '../multimedia/logo-siglas.svg';
 import './NavBar.css';
 
 /* Barra de navegación común a todas las páginas internas (no en el login). */

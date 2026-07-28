@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import NavBar from './NavBar';
-import logoSiglas from './logo-siglas.svg';
-import { fetchAuth, verificarSesion, API } from './auth';
+import logoSiglas from '../multimedia/logo-siglas.svg';
+import { fetchAuth, verificarSesion, API } from '../auth';
 import './globales.css';
 import './usuarios.css';
 
