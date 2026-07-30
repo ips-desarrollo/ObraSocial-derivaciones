@@ -26,10 +26,6 @@ export default function NavBar() {
         Afiliados
       </NavLink>
 
-      <NavLink to="/derivaciones" className="nav-link">
-        Derivaciones
-      </NavLink>
-
       {!soloLectura && (
         <NavLink to="/usuarios" className="nav-link">
           Usuarios
