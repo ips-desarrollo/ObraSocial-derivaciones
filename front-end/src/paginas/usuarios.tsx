@@ -131,9 +131,7 @@ export default function Usuarios() {
   function toggleRol(rol: string) {
     setForm((f) => ({
       ...f,
-      roles: f.roles.includes(rol)
-        ? f.roles.filter((r) => r !== rol)
-        : [...f.roles, rol],
+      roles: [rol],
     }));
   }
 
