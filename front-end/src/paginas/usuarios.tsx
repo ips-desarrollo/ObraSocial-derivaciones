@@ -40,6 +40,7 @@ const emptyForm: FormData = {
 function roleBadgeClass(rol: string) {
   if (rol === 'admin') return 'us-badge us-badge--admin';
   if (rol === 'operador') return 'us-badge us-badge--operador';
+  if (rol === 'lectura') return 'us-badge us-badge--lectura';
   return 'us-badge us-badge--default';
 }
 

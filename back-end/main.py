@@ -186,6 +186,8 @@ def crear_usuario(datos: CrearUsuarioRequest, token: str | None = Depends(oauth2
     uid, uemail = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
+    if _solo_lectura(_extraer_roles(token)):
+        raise HTTPException(status_code=403, detail="Sin permisos para esta acción")
     try:
         pg = get_pg_connection()
         pg.autocommit = False
@@ -232,6 +234,8 @@ def listar_usuarios(token: str | None = Depends(oauth2_scheme)):
     uid, _ = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
+    if _solo_lectura(_extraer_roles(token)):
+        raise HTTPException(status_code=403, detail="Sin permisos para ver usuarios")
     try:
         pg = get_pg_connection()
         cur = pg.cursor()
@@ -286,6 +290,8 @@ def obtener_usuario(usuario_id: int, token: str | None = Depends(oauth2_scheme))
     uid, _ = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
+    if _solo_lectura(_extraer_roles(token)):
+        raise HTTPException(status_code=403, detail="Sin permisos para ver usuarios")
     try:
         pg = get_pg_connection()
         cur = pg.cursor()
@@ -323,6 +329,8 @@ def actualizar_usuario(usuario_id: int, datos: ActualizarUsuarioRequest, token: 
     uid, uemail = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
+    if _solo_lectura(_extraer_roles(token)):
+        raise HTTPException(status_code=403, detail="Sin permisos para esta acción")
     try:
         pg = get_pg_connection()
         pg.autocommit = False
@@ -412,6 +420,8 @@ def eliminar_usuario(usuario_id: int, token: str | None = Depends(oauth2_scheme)
     uid, uemail = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
+    if _solo_lectura(_extraer_roles(token)):
+        raise HTTPException(status_code=403, detail="Sin permisos para esta acción")
     if uid == usuario_id:
         raise HTTPException(status_code=400, detail="No puedes eliminarte a ti mismo")
     try:
@@ -854,6 +864,20 @@ def _extraer_usuario(token: str | None) -> tuple[int | None, str | None]:
         return None, None
 
 
+def _extraer_roles(token: str | None) -> list[str]:
+    if not token:
+        return []
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        return payload.get("roles") or []
+    except JWTError:
+        return []
+
+
+def _solo_lectura(roles: list[str]) -> bool:
+    return roles == ["lectura"]
+
+
 def _registrar_auditoria(documento: int, antes: dict, despues: dict,
                          usuario_id: int | None = None, usuario_email: str | None = None):
     cambios = []
@@ -889,6 +913,8 @@ def actualizar_afiliado(documento: int, datos: dict = Body(...), token: str | No
     uid, uemail = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
+    if _solo_lectura(_extraer_roles(token)):
+        raise HTTPException(status_code=403, detail="Sin permisos para editar")
     try:
         fechas = datos.get("fechas") or {}
         laborales = datos.get("laborales") or {}
@@ -1208,6 +1234,8 @@ def crear_derivacion(datos: DerivacionRequest, token: str | None = Depends(oauth
     uid, _ = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
+    if _solo_lectura(_extraer_roles(token)):
+        raise HTTPException(status_code=403, detail="Sin permisos para crear derivaciones")
     try:
         pg = get_pg_connection()
         cur = pg.cursor()
@@ -1267,6 +1295,8 @@ def actualizar_derivacion(derivacion_id: int, datos: DerivacionRequest, token: s
     uid, _ = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
+    if _solo_lectura(_extraer_roles(token)):
+        raise HTTPException(status_code=403, detail="Sin permisos para editar derivaciones")
     try:
         pg = get_pg_connection()
         cur = pg.cursor()
@@ -1330,6 +1360,8 @@ def eliminar_derivacion(derivacion_id: int, token: str | None = Depends(oauth2_s
     uid, _ = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
+    if _solo_lectura(_extraer_roles(token)):
+        raise HTTPException(status_code=403, detail="Sin permisos para eliminar derivaciones")
     try:
         pg = get_pg_connection()
         cur = pg.cursor()

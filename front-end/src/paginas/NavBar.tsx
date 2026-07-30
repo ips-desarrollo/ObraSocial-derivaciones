@@ -2,8 +2,20 @@ import { NavLink } from 'react-router-dom';
 import logoSiglas from '../multimedia/logo-siglas.svg';
 import './NavBar.css';
 
-/* Barra de navegación común a todas las páginas internas (no en el login). */
+function getUserRoles(): string[] {
+  try {
+    const u = localStorage.getItem('usuario');
+    if (!u) return [];
+    return JSON.parse(u).roles || [];
+  } catch {
+    return [];
+  }
+}
+
 export default function NavBar() {
+  const roles = getUserRoles();
+  const soloLectura = roles.length === 1 && roles[0] === 'lectura';
+
   return (
     <nav className="nav">
       <NavLink to="/afiliados" className="nav-brand">
@@ -18,9 +30,11 @@ export default function NavBar() {
         Derivaciones
       </NavLink>
 
-      <NavLink to="/usuarios" className="nav-link">
-        Usuarios
-      </NavLink>
+      {!soloLectura && (
+        <NavLink to="/usuarios" className="nav-link">
+          Usuarios
+        </NavLink>
+      )}
     </nav>
   );
 }

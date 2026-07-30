@@ -133,7 +133,17 @@ function calcularEdad(nacimiento: string | null): number | null {
   return edad;
 }
 
+function esSoloLectura(): boolean {
+  try {
+    const u = localStorage.getItem('usuario');
+    if (!u) return false;
+    const roles: string[] = JSON.parse(u).roles || [];
+    return roles.length === 1 && roles[0] === 'lectura';
+  } catch { return false; }
+}
+
 export default function Derivaciones() {
+  const soloLectura = esSoloLectura();
   const [derivaciones, setDerivaciones] = useState<Derivacion[]>([]);
   const [mesSeleccionado, setMesSeleccionado] = useState(mesActual());
   const [loading, setLoading] = useState(true);
@@ -749,9 +759,11 @@ export default function Derivaciones() {
             ))}
           </select>
           <div className="dv-toolbar-spacer" />
-          <button className="dv-btn dv-btn--primary" onClick={irACrear}>
-            + Nueva Derivación
-          </button>
+          {!soloLectura && (
+            <button className="dv-btn dv-btn--primary" onClick={irACrear}>
+              + Nueva Derivación
+            </button>
+          )}
         </div>
 
         <div className="dv-panel">
@@ -796,7 +808,7 @@ export default function Derivaciones() {
                     <th>Diagnóstico</th>
                     <th>Tratamiento</th>
                     <th>Fecha Turno</th>
-                    <th>Acciones</th>
+                    {!soloLectura && <th>Acciones</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -826,6 +838,7 @@ export default function Derivaciones() {
                       <td>{d.diagnostico || '-'}</td>
                       <td>{d.tratamiento || '-'}</td>
                       <td>{d.fecha_turno || '-'}</td>
+                      {!soloLectura && (
                       <td>
                         <div className="dv-actions">
                           <button className="dv-btn dv-btn--outline dv-btn--sm" onClick={() => irAEditar(d)}>
@@ -836,6 +849,7 @@ export default function Derivaciones() {
                           </button>
                         </div>
                       </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

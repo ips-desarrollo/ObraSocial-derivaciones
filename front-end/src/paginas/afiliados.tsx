@@ -244,8 +244,18 @@ function cargarEstado(): EstadoGuardado | null {
 }
 
 /* ─── Component ──────────────────────────────────────────────── */
+function esSoloLectura(): boolean {
+  try {
+    const u = localStorage.getItem('usuario');
+    if (!u) return false;
+    const roles: string[] = JSON.parse(u).roles || [];
+    return roles.length === 1 && roles[0] === 'lectura';
+  } catch { return false; }
+}
+
 export default function Afiliados() {
   const guardado = cargarEstado();
+  const soloLectura = esSoloLectura();
   const [af, setAf] = useState<AfiliadoData>(guardado?.af ?? VACIO);
   const [busquedaNombre, setBusquedaNombre] = useState(guardado?.busquedaNombre ?? '');
   const [busquedaDni, setBusquedaDni] = useState(guardado?.busquedaDni ?? '');
@@ -632,7 +642,7 @@ export default function Afiliados() {
           )}
         </div>
 
-        {editando ? (
+        {!soloLectura && (editando ? (
           <div className="af-toolbar-edit-btns">
             <button type="button" className="af-btn af-btn--primary" onClick={handleGuardar}>
               <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" width="14" height="14">
@@ -651,7 +661,7 @@ export default function Afiliados() {
             </svg>
             Editar
           </button>
-        )}
+        ))}
       </div>
 
       <div className={`af-panel${editando ? ' af-panel--editing' : ''}`}>

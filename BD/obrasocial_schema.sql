@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS roles (
 
 INSERT INTO roles (nombre, descripcion) VALUES
     ('admin', 'Administrador con acceso total'),
-    ('operador', 'Operador con acceso limitado a consultas y edición de afiliados')
+    ('operador', 'Operador con acceso limitado a consultas y edición de afiliados'),
+    ('lectura', 'Solo lectura, sin acceso a la sección de usuarios ni edición de datos')
 ON CONFLICT (nombre) DO NOTHING;
 
 -- ==========================================

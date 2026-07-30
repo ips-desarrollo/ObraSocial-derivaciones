@@ -245,6 +245,12 @@
   border: 1px solid rgba(22, 163, 74, 0.2);
 }
 
+.us-badge--lectura {
+  background: rgba(234, 179, 8, 0.12);
+  color: #b45309;
+  border: 1px solid rgba(234, 179, 8, 0.25);
+}
+
 .us-badge--default {
   background: var(--surface-3);
   color: var(--text-secondary);
