@@ -1,0 +1,576 @@
+/* ─── Page wrapper ───────────────────────────────────────────── */
+.dv-page {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 1.25rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ─── Toolbar ────────────────────────────────────────────────── */
+.dv-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  flex-wrap: wrap;
+}
+
+.dv-toolbar-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ips);
+  letter-spacing: -0.01em;
+}
+
+.dv-toolbar-mes {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.dv-mes-select {
+  padding: 0.5rem 0.85rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.dv-mes-select:focus {
+  border-color: var(--ips);
+}
+
+/* ─── Buttons ────────────────────────────────────────────────── */
+.dv-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: inherit;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.dv-btn--primary {
+  background: var(--ips);
+  color: #fff;
+  border: 1px solid var(--ips);
+}
+
+.dv-btn--primary:hover {
+  filter: brightness(1.1);
+}
+
+.dv-btn--outline {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.dv-btn--outline:hover {
+  border-color: var(--ips);
+  color: var(--ips);
+}
+
+.dv-btn--danger {
+  background: var(--surface);
+  color: var(--danger);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+}
+
+.dv-btn--danger:hover {
+  background: var(--danger-bg);
+  border-color: var(--danger);
+}
+
+.dv-btn--sm {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.78rem;
+}
+
+.dv-toolbar-spacer {
+  flex: 1;
+}
+
+/* ─── Panel ──────────────────────────────────────────────────── */
+.dv-panel {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  background: var(--surface);
+  font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+}
+
+/* ─── Header ─────────────────────────────────────────────────── */
+.dv-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1.25rem 1.75rem;
+  background: #1e2e53;
+}
+
+.dv-header::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 55% 120% at 85% 50%, rgba(90, 116, 186, 0.42) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 100% at 10% 10%, rgba(68, 92, 164, 0.35) 0%, transparent 65%);
+  pointer-events: none;
+}
+
+.dv-header-logo {
+  height: 40px;
+  width: auto;
+  filter: brightness(0) invert(1);
+  opacity: 0.92;
+  position: relative;
+  z-index: 1;
+}
+
+.dv-header-title {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: white;
+  position: relative;
+  z-index: 1;
+  letter-spacing: -0.01em;
+}
+
+.dv-header-count {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 0.2rem 0.6rem;
+  position: relative;
+  z-index: 1;
+}
+
+.dv-header--search {
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.dv-header-search-wrap {
+  flex: 1;
+  min-width: 200px;
+  position: relative;
+  z-index: 2;
+}
+
+.dv-search-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.dv-search-row .dv-header-search-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.dv-btn--search {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: inherit;
+  background: rgba(255, 255, 255, 0.18);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+}
+
+.dv-btn--search:hover {
+  background: rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.dv-header-search-input {
+  width: 100%;
+  padding: 0.5rem 0.85rem;
+  font-size: 0.88rem;
+  font-family: inherit;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--r-sm);
+  color: white;
+  outline: none;
+  box-sizing: border-box;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.dv-header-search-input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.dv-header-search-input:focus {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.dv-header-afiliado-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: white;
+  position: relative;
+  z-index: 1;
+  letter-spacing: -0.01em;
+}
+
+/* ─── Table ──────────────────────────────────────────────────── */
+.dv-table-wrap {
+  overflow-x: auto;
+}
+
+.dv-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.dv-table thead tr th {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--label);
+  font-weight: 600;
+  padding: 0.65rem 0.6rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  background: var(--surface-2);
+}
+
+.dv-table tbody tr {
+  transition: background 0.1s;
+}
+
+.dv-table tbody tr:hover {
+  background: var(--ips-subtle);
+}
+
+.dv-table tbody tr td {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.dv-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.dv-name-cell {
+  font-weight: 600;
+  color: var(--text) !important;
+}
+
+.dv-monto-cell {
+  font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
+  font-size: 0.78rem;
+}
+
+.dv-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+/* ─── Empty state ────────────────────────────────────────────── */
+.dv-empty {
+  padding: 3rem 1rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  font-style: italic;
+}
+
+/* ─── Inline form (crear / editar) ───────────────────────────── */
+.dv-form-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+  padding: 1.25rem 1.5rem;
+  text-align: left;
+}
+
+/* Wrapper visual para cada sección */
+.dv-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 0.85rem 1rem;
+}
+
+.dv-form-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.dv-form-footer {
+  grid-column: 1 / -1;
+}
+
+.dv-form-field--narrow {
+  max-width: 90px;
+}
+
+.dv-form-section {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ips);
+  margin: 0;
+  padding-bottom: 0.35rem;
+  border-bottom: 2px solid var(--ips);
+  display: inline-block;
+  align-self: flex-start;
+}
+
+.dv-form-sep {
+  display: none;
+}
+
+.dv-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+}
+
+.dv-form-row-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.6rem;
+}
+
+.dv-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.dv-form-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--label);
+}
+
+.dv-form-input,
+.dv-form-textarea {
+  width: 100%;
+  padding: 0.42rem 0.7rem;
+  font-size: 0.84rem;
+  font-family: inherit;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.dv-form-input:focus,
+.dv-form-textarea:focus {
+  border-color: var(--ips);
+  box-shadow: 0 0 0 3px var(--ips-subtle);
+  background: var(--surface);
+}
+
+.dv-form-input--ro {
+  background: var(--surface-3);
+  color: var(--text-muted);
+  cursor: default;
+  border-style: dashed;
+}
+
+.dv-form-input--ro:focus {
+  border-color: var(--border);
+  box-shadow: none;
+  background: var(--surface-3);
+}
+
+.dv-form-textarea {
+  resize: vertical;
+  min-height: 48px;
+}
+
+.dv-form-error {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--danger);
+  background: var(--danger-bg);
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  border-radius: var(--r-sm);
+  padding: 0.45rem 0.7rem;
+}
+
+.dv-form-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  padding-top: 0.75rem;
+}
+
+/* ─── Afiliado search ────────────────────────────────────────── */
+.dv-search-wrap {
+  position: relative;
+}
+
+.dv-search-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-lg);
+  max-height: 200px;
+  overflow-y: auto;
+  margin-top: 2px;
+}
+
+.dv-search-item {
+  padding: 0.5rem 0.8rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+
+.dv-search-item:last-child {
+  border-bottom: none;
+}
+
+.dv-search-item:hover {
+  background: var(--ips-subtle);
+}
+
+.dv-search-item-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.dv-search-item-dni {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+/* ─── Modal (solo para confirmar eliminación) ────────────────── */
+.dv-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.dv-modal {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 1.75rem;
+  max-width: 460px;
+  width: 100%;
+}
+
+.dv-modal-title {
+  margin: 0 0 1.25rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.dv-modal-btns {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
+}
+
+.dv-confirm-text {
+  margin: 0 0 1.25rem;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.dv-confirm-name {
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* ─── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .dv-form-body {
+    grid-template-columns: 1fr;
+    padding: 1rem;
+  }
+
+  .dv-form-footer {
+    grid-column: 1;
+  }
+
+  .dv-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .dv-form-row,
+  .dv-form-row-3 {
+    grid-template-columns: 1fr;
+  }
+
+  .dv-form-group {
+    padding: 0.7rem;
+  }
+
+  .dv-modal {
+    max-width: 100%;
+  }
+}

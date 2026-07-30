@@ -7,6 +7,7 @@ from decimal import Decimal
 import json
 import os
 import pyodbc
+pyodbc.pooling = False
 import psycopg2
 from dotenv import load_dotenv
 from jose import jwt, JWTError
@@ -88,17 +89,19 @@ def _build_conn_str():
     )
 
 
-# Una conexión NUEVA por request. Compartir una sola conexión global entre
-# requests es inseguro: FastAPI corre los endpoints sync en varios hilos y
-# pyodbc no permite usar la misma conexión desde hilos distintos a la vez, lo
-# que hace que el backend se cuelgue. pyodbc mantiene un pool interno
-# (pooling=True por defecto), así que abrir por request reutiliza la conexión
-# física y sigue siendo rápido.
-#
-# autocommit=True: cada sentencia se confirma sola; los SELECT no dejan
-# transacciones abiertas y un UPDATE fallido no envenena nada.
+# Una conexión NUEVA por request con retry. pyodbc.pooling está desactivado
+# (arriba) para evitar reutilizar conexiones muertas del pool interno.
+# Aun así, la primera conexión tras inactividad puede tardar si SQL Express
+# necesita despertar; el retry con timeout corto evita cuelgues largos.
 def get_connection():
-    return pyodbc.connect(_build_conn_str(), timeout=5, autocommit=True)
+    conn_str = _build_conn_str()
+    last_err = None
+    for attempt in range(3):
+        try:
+            return pyodbc.connect(conn_str, timeout=3, autocommit=True)
+        except pyodbc.Error as e:
+            last_err = e
+    raise last_err
 
 
 def get_pg_connection():
@@ -467,14 +470,41 @@ def buscar_afiliados(q: str = "", campo: str = ""):
         cursor = conn.cursor()
         prefijo = f"{q}%"
         if campo == "dni":
-            # Búsqueda por DNI (Documento es la PK, index seek directo)
-            cursor.execute(
-                """SELECT TOP 50 Documento, Nombre, nombre_afiliado, apellido_afiliado
-                   FROM Afiliados
-                   WHERE CAST(Documento AS VARCHAR(20)) LIKE ?
-                   ORDER BY Documento""",
-                (prefijo,)
-            )
+            if q.isdigit():
+                val = int(q)
+                cursor.execute(
+                    """SELECT TOP 50 Documento, Nombre, nombre_afiliado, apellido_afiliado
+                       FROM Afiliados
+                       WHERE Documento = ?""",
+                    (val,)
+                )
+                rows = cursor.fetchall()
+                if not rows and len(q) >= 2:
+                    conds = []
+                    params = []
+                    l = len(q)
+                    for d in range(0, max(0, 9 - l)):
+                        mult = 10**d
+                        low = val * mult
+                        high = low + mult - 1
+                        conds.append("(Documento >= ? AND Documento <= ?)")
+                        params.extend([low, high])
+                    if conds:
+                        sql = f"""SELECT TOP 50 Documento, Nombre, nombre_afiliado, apellido_afiliado
+                                   FROM Afiliados
+                                   WHERE {" OR ".join(conds)}
+                                   ORDER BY Documento"""
+                        cursor.execute(sql, params)
+                        rows = cursor.fetchall()
+            else:
+                cursor.execute(
+                    """SELECT TOP 50 Documento, Nombre, nombre_afiliado, apellido_afiliado
+                       FROM Afiliados
+                       WHERE CAST(Documento AS VARCHAR(20)) LIKE ?
+                       ORDER BY Documento""",
+                    (prefijo,)
+                )
+                rows = cursor.fetchall()
         else:
             cursor.execute(
                 """SELECT TOP 50 Documento, Nombre, nombre_afiliado, apellido_afiliado
@@ -483,7 +513,7 @@ def buscar_afiliados(q: str = "", campo: str = ""):
                    ORDER BY Nombre""",
                 (prefijo,)
             )
-        rows = cursor.fetchall()
+            rows = cursor.fetchall()
         result = [
             {
                 "id_afiliado": int(row[0]),
@@ -994,6 +1024,383 @@ def actualizar_afiliado(documento: int, datos: dict = Body(...), token: str | No
         _registrar_auditoria(documento, antes, despues_vals, uid, uemail)
 
         return {"ok": True, "documento": documento}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+class DerivacionRequest(BaseModel):
+    mes: str
+    nro_disposicion: str | None = None
+    fecha: str | None = None
+    afiliado_documento: int
+    afiliado_nombre: str | None = None
+    afiliado_credencial: str | None = None
+    afiliado_edad: int | None = None
+    afiliado_sexo: str | None = None
+    destino: str | None = None
+    cobertura_prestacion: str | None = None
+    centro_medico: str | None = None
+    monto_prestacion: float | None = None
+    expediente: str | None = None
+    cant_acompanantes: int | None = None
+    tipo_traslado: str | None = None
+    monto_traslado: float | None = None
+    cobertura_alojamiento: str | None = None
+    tipo_alojamiento: str | None = None
+    lugar_alojamiento: str | None = None
+    cant_noches_alojamiento: int | None = None
+    monto_alojamiento: float | None = None
+    tipo_patologia: str | None = None
+    diagnostico: str | None = None
+    tratamiento: str | None = None
+    fecha_turno: str | None = None
+
+
+def _ensure_derivaciones_table():
+    try:
+        pg = get_pg_connection()
+        cur = pg.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS derivaciones (
+                id              SERIAL PRIMARY KEY,
+                mes             DATE NOT NULL,
+                nro_disposicion VARCHAR(100),
+                fecha           DATE,
+                afiliado_documento  INT NOT NULL,
+                afiliado_nombre     VARCHAR(250),
+                afiliado_credencial VARCHAR(100),
+                afiliado_edad       INT,
+                afiliado_sexo       VARCHAR(30),
+                destino             VARCHAR(250),
+                cobertura_prestacion VARCHAR(250),
+                centro_medico       VARCHAR(250),
+                monto_prestacion    NUMERIC(12,2),
+                expediente          VARCHAR(150),
+                cant_acompanantes   INT,
+                tipo_traslado       VARCHAR(150),
+                monto_traslado      NUMERIC(12,2),
+                cobertura_alojamiento VARCHAR(250),
+                tipo_alojamiento    VARCHAR(150),
+                lugar_alojamiento   VARCHAR(250),
+                cant_noches_alojamiento INT,
+                monto_alojamiento   NUMERIC(12,2),
+                tipo_patologia      VARCHAR(150),
+                diagnostico         TEXT,
+                tratamiento         TEXT,
+                fecha_turno         DATE,
+                creado_en           TIMESTAMP DEFAULT NOW(),
+                creado_por          INT REFERENCES usuarios(id)
+            )
+        """)
+        pg.commit()
+        cur.close()
+        pg.close()
+    except Exception as e:
+        print(f"[DERIVACIONES TABLE] {e}")
+
+
+_ensure_derivaciones_table()
+
+
+@app.get("/derivaciones")
+def listar_derivaciones(mes: str = "", token: str | None = Depends(oauth2_scheme)):
+    uid, _ = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    try:
+        pg = get_pg_connection()
+        cur = pg.cursor()
+        if mes:
+            cur.execute(
+                """SELECT id, mes, nro_disposicion, fecha, afiliado_documento,
+                          afiliado_nombre, afiliado_credencial, afiliado_edad,
+                          afiliado_sexo, destino, cobertura_prestacion, centro_medico,
+                          monto_prestacion, expediente, cant_acompanantes, tipo_traslado,
+                          monto_traslado, cobertura_alojamiento, tipo_alojamiento,
+                          lugar_alojamiento, cant_noches_alojamiento, monto_alojamiento,
+                          tipo_patologia, diagnostico, tratamiento, fecha_turno, creado_en
+                   FROM derivaciones
+                   WHERE mes = %s
+                   ORDER BY fecha, id""",
+                (f"{mes}-01",),
+            )
+        else:
+            cur.execute(
+                """SELECT id, mes, nro_disposicion, fecha, afiliado_documento,
+                          afiliado_nombre, afiliado_credencial, afiliado_edad,
+                          afiliado_sexo, destino, cobertura_prestacion, centro_medico,
+                          monto_prestacion, expediente, cant_acompanantes, tipo_traslado,
+                          monto_traslado, cobertura_alojamiento, tipo_alojamiento,
+                          lugar_alojamiento, cant_noches_alojamiento, monto_alojamiento,
+                          tipo_patologia, diagnostico, tratamiento, fecha_turno, creado_en
+                   FROM derivaciones
+                   ORDER BY mes DESC, fecha, id
+                   LIMIT 200"""
+            )
+        rows = cur.fetchall()
+        cur.close()
+        pg.close()
+        return [
+            {
+                "id": r[0],
+                "mes": r[1].strftime("%Y-%m") if r[1] else None,
+                "nro_disposicion": r[2],
+                "fecha": r[3].strftime("%Y-%m-%d") if r[3] else None,
+                "afiliado_documento": r[4],
+                "afiliado_nombre": r[5],
+                "afiliado_credencial": r[6],
+                "afiliado_edad": r[7],
+                "afiliado_sexo": r[8],
+                "destino": r[9],
+                "cobertura_prestacion": r[10],
+                "centro_medico": r[11],
+                "monto_prestacion": float(r[12]) if r[12] is not None else None,
+                "expediente": r[13],
+                "cant_acompanantes": r[14],
+                "tipo_traslado": r[15],
+                "monto_traslado": float(r[16]) if r[16] is not None else None,
+                "cobertura_alojamiento": r[17],
+                "tipo_alojamiento": r[18],
+                "lugar_alojamiento": r[19],
+                "cant_noches_alojamiento": r[20],
+                "monto_alojamiento": float(r[21]) if r[21] is not None else None,
+                "tipo_patologia": r[22],
+                "diagnostico": r[23],
+                "tratamiento": r[24],
+                "fecha_turno": r[25].strftime("%Y-%m-%d") if r[25] else None,
+                "creado_en": r[26].isoformat() if r[26] else None,
+            }
+            for r in rows
+        ]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/derivaciones/meses")
+def listar_meses_derivaciones(token: str | None = Depends(oauth2_scheme)):
+    uid, _ = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    try:
+        pg = get_pg_connection()
+        cur = pg.cursor()
+        cur.execute(
+            """SELECT DISTINCT mes, COUNT(*) as total
+               FROM derivaciones
+               GROUP BY mes
+               ORDER BY mes DESC"""
+        )
+        rows = cur.fetchall()
+        cur.close()
+        pg.close()
+        return [
+            {"mes": r[0].strftime("%Y-%m"), "total": r[1]}
+            for r in rows
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/derivaciones")
+def crear_derivacion(datos: DerivacionRequest, token: str | None = Depends(oauth2_scheme)):
+    uid, _ = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    try:
+        pg = get_pg_connection()
+        cur = pg.cursor()
+        cur.execute(
+            """INSERT INTO derivaciones
+                   (mes, nro_disposicion, fecha, afiliado_documento, afiliado_nombre,
+                    afiliado_credencial, afiliado_edad, afiliado_sexo, destino,
+                    cobertura_prestacion, centro_medico, monto_prestacion, expediente,
+                    cant_acompanantes, tipo_traslado, monto_traslado, cobertura_alojamiento,
+                    tipo_alojamiento, lugar_alojamiento, cant_noches_alojamiento,
+                    monto_alojamiento, tipo_patologia, diagnostico, tratamiento,
+                    fecha_turno, creado_por)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+               RETURNING id""",
+            (
+                f"{datos.mes}-01",
+                _to_str(datos.nro_disposicion),
+                _to_fecha_sql(datos.fecha),
+                datos.afiliado_documento,
+                _to_str(datos.afiliado_nombre),
+                _to_str(datos.afiliado_credencial),
+                datos.afiliado_edad,
+                _to_str(datos.afiliado_sexo),
+                _to_str(datos.destino),
+                _to_str(datos.cobertura_prestacion),
+                _to_str(datos.centro_medico),
+                datos.monto_prestacion,
+                _to_str(datos.expediente),
+                datos.cant_acompanantes,
+                _to_str(datos.tipo_traslado),
+                datos.monto_traslado,
+                _to_str(datos.cobertura_alojamiento),
+                _to_str(datos.tipo_alojamiento),
+                _to_str(datos.lugar_alojamiento),
+                datos.cant_noches_alojamiento,
+                datos.monto_alojamiento,
+                _to_str(datos.tipo_patologia),
+                _to_str(datos.diagnostico),
+                _to_str(datos.tratamiento),
+                _to_fecha_sql(datos.fecha_turno),
+                uid,
+            ),
+        )
+        new_id = cur.fetchone()[0]
+        pg.commit()
+        cur.close()
+        pg.close()
+        return {"ok": True, "id": new_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/derivaciones/{derivacion_id}")
+def actualizar_derivacion(derivacion_id: int, datos: DerivacionRequest, token: str | None = Depends(oauth2_scheme)):
+    uid, _ = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    try:
+        pg = get_pg_connection()
+        cur = pg.cursor()
+        cur.execute("SELECT id FROM derivaciones WHERE id = %s", (derivacion_id,))
+        if cur.fetchone() is None:
+            cur.close()
+            pg.close()
+            raise HTTPException(status_code=404, detail="Derivación no encontrada")
+        cur.execute(
+            """UPDATE derivaciones SET
+                   mes=%s, nro_disposicion=%s, fecha=%s, afiliado_documento=%s,
+                   afiliado_nombre=%s, afiliado_credencial=%s, afiliado_edad=%s,
+                   afiliado_sexo=%s, destino=%s, cobertura_prestacion=%s,
+                   centro_medico=%s, monto_prestacion=%s, expediente=%s,
+                   cant_acompanantes=%s, tipo_traslado=%s, monto_traslado=%s,
+                   cobertura_alojamiento=%s, tipo_alojamiento=%s, lugar_alojamiento=%s,
+                   cant_noches_alojamiento=%s, monto_alojamiento=%s, tipo_patologia=%s,
+                   diagnostico=%s, tratamiento=%s, fecha_turno=%s
+               WHERE id=%s""",
+            (
+                f"{datos.mes}-01",
+                _to_str(datos.nro_disposicion),
+                _to_fecha_sql(datos.fecha),
+                datos.afiliado_documento,
+                _to_str(datos.afiliado_nombre),
+                _to_str(datos.afiliado_credencial),
+                datos.afiliado_edad,
+                _to_str(datos.afiliado_sexo),
+                _to_str(datos.destino),
+                _to_str(datos.cobertura_prestacion),
+                _to_str(datos.centro_medico),
+                datos.monto_prestacion,
+                _to_str(datos.expediente),
+                datos.cant_acompanantes,
+                _to_str(datos.tipo_traslado),
+                datos.monto_traslado,
+                _to_str(datos.cobertura_alojamiento),
+                _to_str(datos.tipo_alojamiento),
+                _to_str(datos.lugar_alojamiento),
+                datos.cant_noches_alojamiento,
+                datos.monto_alojamiento,
+                _to_str(datos.tipo_patologia),
+                _to_str(datos.diagnostico),
+                _to_str(datos.tratamiento),
+                _to_fecha_sql(datos.fecha_turno),
+                derivacion_id,
+            ),
+        )
+        pg.commit()
+        cur.close()
+        pg.close()
+        return {"ok": True, "id": derivacion_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/derivaciones/{derivacion_id}")
+def eliminar_derivacion(derivacion_id: int, token: str | None = Depends(oauth2_scheme)):
+    uid, _ = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    try:
+        pg = get_pg_connection()
+        cur = pg.cursor()
+        cur.execute("SELECT id FROM derivaciones WHERE id = %s", (derivacion_id,))
+        if cur.fetchone() is None:
+            cur.close()
+            pg.close()
+            raise HTTPException(status_code=404, detail="Derivación no encontrada")
+        cur.execute("DELETE FROM derivaciones WHERE id = %s", (derivacion_id,))
+        pg.commit()
+        cur.close()
+        pg.close()
+        return {"ok": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/patologias/afiliado/{documento}")
+def patologias_afiliado(documento: int):
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """SELECT p.PAT_ID, p.PAT_NOMBRE, p.PAT_CIE_CLAVE, d.descripcion
+               FROM cronicos c
+               INNER JOIN PATOLOGIAS p ON c.CRO_PAT_ID = p.PAT_ID
+               LEFT JOIN CIE_diagnosticos d ON p.PAT_CIE_CLAVE = d.codigo
+               WHERE c.CRO_DOCUMENTO = ?
+               ORDER BY p.PAT_NOMBRE""",
+            (documento,),
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+        return [
+            {
+                "pat_id": _num(r[0]),
+                "nombre": (r[1] or "").strip(),
+                "cie_clave": (r[2] or "").strip(),
+                "diagnostico": (r[3] or "").strip(),
+            }
+            for r in rows
+        ]
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/diagnosticos/{cie_clave}")
+def diagnosticos_por_cie(cie_clave: str):
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT codigo, descripcion FROM CIE_diagnosticos WHERE codigo = ?",
+            (cie_clave,),
+        )
+        rows = list(cursor.fetchall())
+        cursor.execute(
+            "SELECT TOP 50 codigo, descripcion FROM CIE_diagnosticos WHERE codigo LIKE ? ORDER BY codigo",
+            (cie_clave + ".%",),
+        )
+        rows.extend(cursor.fetchall())
+        cursor.close()
+        return [
+            {
+                "codigo": (r[0] or "").strip(),
+                "descripcion": (r[1] or "").strip(),
+            }
+            for r in rows
+        ]
     except Exception as e:
         return {"error": str(e)}
 

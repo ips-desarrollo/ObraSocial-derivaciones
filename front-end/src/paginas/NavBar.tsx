@@ -14,6 +14,10 @@ export default function NavBar() {
         Afiliados
       </NavLink>
 
+      <NavLink to="/derivaciones" className="nav-link">
+        Derivaciones
+      </NavLink>
+
       <NavLink to="/usuarios" className="nav-link">
         Usuarios
       </NavLink>

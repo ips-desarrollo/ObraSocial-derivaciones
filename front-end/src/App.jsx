@@ -64,8 +64,7 @@ function App() {
           <div className="login-form-header">
             <img src={logoNombre} className="login-mobile-logo" alt="Obra Social IPS" />
             <h1 className="login-title">Bienvenido</h1>
-            <p className="login-subtitle">Ingresá tus credenciales para conti
-              ar</p>
+            <p className="login-subtitle">Ingresá tus credenciales para continuar</p>
           </div>
 
           <form className="login-form" onSubmit={handleSubmit}>

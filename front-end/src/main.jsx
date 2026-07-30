@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import App from './App.jsx'
 import Afiliados from './paginas/afiliados.tsx'
 import Usuarios from './paginas/usuarios.tsx'
+import Derivaciones from './paginas/derivaciones.tsx'
 import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
@@ -12,6 +13,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <Routes>
         <Route path="/" element={<App />} />
         <Route path="/afiliados" element={<Afiliados />} />
+        <Route path="/derivaciones" element={<Derivaciones />} />
         <Route path="/usuarios" element={<Usuarios />} />
       </Routes>
     </BrowserRouter>
