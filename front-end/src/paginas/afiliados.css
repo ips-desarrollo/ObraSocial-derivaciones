@@ -424,7 +424,7 @@
 /* ─── Tarjetas destacadas: DNI / CUIL / Credencial ───────────── */
 .af-id-cards {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 0.6rem;
 }
 
@@ -441,6 +441,7 @@
 }
 
 .af-id-card--credencial {
+  flex: 1.5 1 0;
   border-color: var(--ips);
   background:
     linear-gradient(135deg, var(--ips-subtle), rgba(90, 116, 186, 0.16));
