@@ -695,9 +695,17 @@ def obtener_afiliado(documento: int):
         cursor.close()
 
         # Credencial = orden + documento del titular + barra, todo de corrido
-        credencial = "".join(
-            str(int(v)) for v in (row[13], row[14], row[15]) if v is not None
-        ) or None
+        orden_val = row[13]
+        doc_titular_val = row[14]
+        barra_val = row[15]
+        parts = []
+        if orden_val is not None:
+            parts.append(str(int(orden_val)).zfill(2))
+        if doc_titular_val is not None:
+            parts.append(str(int(doc_titular_val)))
+        if barra_val is not None:
+            parts.append(str(int(barra_val)).zfill(2))
+        credencial = "".join(parts) or None
 
         return {
             "credencial": credencial,
@@ -1058,74 +1066,278 @@ class DerivacionRequest(BaseModel):
     mes: str
     nro_disposicion: str | None = None
     fecha: str | None = None
-    afiliado_documento: int
+    afiliado_documento: str
     afiliado_nombre: str | None = None
     afiliado_credencial: str | None = None
     afiliado_edad: int | None = None
     afiliado_sexo: str | None = None
-    destino: str | None = None
-    cobertura_prestacion: str | None = None
-    centro_medico: str | None = None
-    monto_prestacion: float | None = None
     expediente: str | None = None
-    cant_acompanantes: int | None = None
-    tipo_traslado: str | None = None
-    monto_traslado: float | None = None
-    cobertura_alojamiento: str | None = None
-    tipo_alojamiento: str | None = None
-    lugar_alojamiento: str | None = None
-    cant_noches_alojamiento: int | None = None
-    monto_alojamiento: float | None = None
     tipo_patologia: str | None = None
     diagnostico: str | None = None
     tratamiento: str | None = None
     fecha_turno: str | None = None
+    destino: str | None = None
+    id_cobertura: int | None = None
+    centro_medico: str | None = None
+    monto_prestacion: float | None = None
+    id_tipo_traslado: int | None = None
+    cant_acompanantes: int | None = None
+    monto_traslado: float | None = None
+    id_cobertura_alojamiento: int | None = None
+    id_tipo_alojamiento: int | None = None
+    lugar_alojamiento: str | None = None
+    cant_noches: int | None = None
+    monto_alojamiento: float | None = None
 
 
-def _ensure_derivaciones_table():
+def _ensure_derivacion_tables():
     try:
         pg = get_pg_connection()
         cur = pg.cursor()
         cur.execute("""
-            CREATE TABLE IF NOT EXISTS derivaciones (
-                id              SERIAL PRIMARY KEY,
-                mes             DATE NOT NULL,
-                nro_disposicion VARCHAR(100),
-                fecha           DATE,
-                afiliado_documento  INT NOT NULL,
-                afiliado_nombre     VARCHAR(250),
-                afiliado_credencial VARCHAR(100),
-                afiliado_edad       INT,
-                afiliado_sexo       VARCHAR(30),
-                destino             VARCHAR(250),
-                cobertura_prestacion VARCHAR(250),
-                centro_medico       VARCHAR(250),
-                monto_prestacion    NUMERIC(12,2),
-                expediente          VARCHAR(150),
-                cant_acompanantes   INT,
-                tipo_traslado       VARCHAR(150),
-                monto_traslado      NUMERIC(12,2),
-                cobertura_alojamiento VARCHAR(250),
-                tipo_alojamiento    VARCHAR(150),
-                lugar_alojamiento   VARCHAR(250),
-                cant_noches_alojamiento INT,
-                monto_alojamiento   NUMERIC(12,2),
-                tipo_patologia      VARCHAR(150),
-                diagnostico         TEXT,
-                tratamiento         TEXT,
-                fecha_turno         DATE,
-                creado_en           TIMESTAMP DEFAULT NOW(),
-                creado_por          INT REFERENCES usuarios(id)
-            )
+            CREATE TABLE IF NOT EXISTS cobertura (
+                id SERIAL PRIMARY KEY,
+                nombre VARCHAR(100) NOT NULL UNIQUE
+            );
+            CREATE TABLE IF NOT EXISTS tipo_traslado (
+                id SERIAL PRIMARY KEY,
+                nombre VARCHAR(100) NOT NULL UNIQUE
+            );
+            CREATE TABLE IF NOT EXISTS tipo_alojamiento (
+                id SERIAL PRIMARY KEY,
+                nombre VARCHAR(100) NOT NULL UNIQUE
+            );
+            CREATE TABLE IF NOT EXISTS derivacion (
+                id_derivacion SERIAL PRIMARY KEY,
+                mes VARCHAR(20),
+                nro_disposicion VARCHAR(50),
+                fecha DATE NOT NULL,
+                expediente VARCHAR(50),
+                afiliado_documento VARCHAR(20) NOT NULL,
+                afiliado_nombre VARCHAR(200) NOT NULL,
+                afiliado_credencial VARCHAR(50),
+                afiliado_edad INTEGER,
+                afiliado_sexo VARCHAR(20),
+                tipo_patologia VARCHAR(100),
+                diagnostico TEXT,
+                tratamiento TEXT,
+                fecha_turno DATE,
+                creado_en TIMESTAMP DEFAULT NOW(),
+                creado_por VARCHAR(100)
+            );
+            CREATE TABLE IF NOT EXISTS derivacion_prestacion (
+                id SERIAL PRIMARY KEY,
+                id_derivacion INTEGER NOT NULL UNIQUE REFERENCES derivacion(id_derivacion) ON DELETE CASCADE,
+                destino VARCHAR(200),
+                id_cobertura INTEGER REFERENCES cobertura(id),
+                centro_medico VARCHAR(200),
+                monto_prestacion NUMERIC(12, 2)
+            );
+            CREATE TABLE IF NOT EXISTS derivacion_traslado (
+                id SERIAL PRIMARY KEY,
+                id_derivacion INTEGER NOT NULL UNIQUE REFERENCES derivacion(id_derivacion) ON DELETE CASCADE,
+                id_tipo_traslado INTEGER REFERENCES tipo_traslado(id),
+                cant_acompanantes INTEGER DEFAULT 0,
+                monto_traslado NUMERIC(12, 2)
+            );
+            CREATE TABLE IF NOT EXISTS derivacion_alojamiento (
+                id SERIAL PRIMARY KEY,
+                id_derivacion INTEGER NOT NULL UNIQUE REFERENCES derivacion(id_derivacion) ON DELETE CASCADE,
+                id_cobertura_alojamiento INTEGER REFERENCES cobertura(id),
+                id_tipo_alojamiento INTEGER REFERENCES tipo_alojamiento(id),
+                lugar_alojamiento VARCHAR(200),
+                cant_noches INTEGER,
+                monto_alojamiento NUMERIC(12, 2)
+            );
         """)
         pg.commit()
         cur.close()
         pg.close()
     except Exception as e:
-        print(f"[DERIVACIONES TABLE] {e}")
+        print(f"[DERIVACION TABLES] {e}")
 
 
-_ensure_derivaciones_table()
+_ensure_derivacion_tables()
+
+
+@app.get("/coberturas")
+def listar_coberturas(token: str | None = Depends(oauth2_scheme)):
+    uid, _ = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    try:
+        pg = get_pg_connection()
+        cur = pg.cursor()
+        cur.execute("SELECT id, nombre FROM cobertura ORDER BY nombre")
+        rows = cur.fetchall()
+        cur.close()
+        pg.close()
+        return [{"id": r[0], "nombre": r[1]} for r in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/coberturas")
+def crear_cobertura(nombre: str, token: str | None = Depends(oauth2_scheme)):
+    uid, _ = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    if _solo_lectura(_extraer_roles(token)):
+        raise HTTPException(status_code=403, detail="Sin permisos")
+    try:
+        pg = get_pg_connection()
+        cur = pg.cursor()
+        cur.execute("INSERT INTO cobertura (nombre) VALUES (%s) ON CONFLICT (nombre) DO NOTHING RETURNING id", (nombre,))
+        row = cur.fetchone()
+        if row is None:
+            cur.execute("SELECT id FROM cobertura WHERE nombre = %s", (nombre,))
+            row = cur.fetchone()
+        pg.commit()
+        cur.close()
+        pg.close()
+        return {"id": row[0], "nombre": nombre}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/tipos-traslado")
+def listar_tipos_traslado(token: str | None = Depends(oauth2_scheme)):
+    uid, _ = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    try:
+        pg = get_pg_connection()
+        cur = pg.cursor()
+        cur.execute("SELECT id, nombre FROM tipo_traslado ORDER BY nombre")
+        rows = cur.fetchall()
+        cur.close()
+        pg.close()
+        return [{"id": r[0], "nombre": r[1]} for r in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/tipos-traslado")
+def crear_tipo_traslado(nombre: str, token: str | None = Depends(oauth2_scheme)):
+    uid, _ = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    if _solo_lectura(_extraer_roles(token)):
+        raise HTTPException(status_code=403, detail="Sin permisos")
+    try:
+        pg = get_pg_connection()
+        cur = pg.cursor()
+        cur.execute("INSERT INTO tipo_traslado (nombre) VALUES (%s) ON CONFLICT (nombre) DO NOTHING RETURNING id", (nombre,))
+        row = cur.fetchone()
+        if row is None:
+            cur.execute("SELECT id FROM tipo_traslado WHERE nombre = %s", (nombre,))
+            row = cur.fetchone()
+        pg.commit()
+        cur.close()
+        pg.close()
+        return {"id": row[0], "nombre": nombre}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/tipos-alojamiento")
+def listar_tipos_alojamiento(token: str | None = Depends(oauth2_scheme)):
+    uid, _ = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    try:
+        pg = get_pg_connection()
+        cur = pg.cursor()
+        cur.execute("SELECT id, nombre FROM tipo_alojamiento ORDER BY nombre")
+        rows = cur.fetchall()
+        cur.close()
+        pg.close()
+        return [{"id": r[0], "nombre": r[1]} for r in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/tipos-alojamiento")
+def crear_tipo_alojamiento(nombre: str, token: str | None = Depends(oauth2_scheme)):
+    uid, _ = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    if _solo_lectura(_extraer_roles(token)):
+        raise HTTPException(status_code=403, detail="Sin permisos")
+    try:
+        pg = get_pg_connection()
+        cur = pg.cursor()
+        cur.execute("INSERT INTO tipo_alojamiento (nombre) VALUES (%s) ON CONFLICT (nombre) DO NOTHING RETURNING id", (nombre,))
+        row = cur.fetchone()
+        if row is None:
+            cur.execute("SELECT id FROM tipo_alojamiento WHERE nombre = %s", (nombre,))
+            row = cur.fetchone()
+        pg.commit()
+        cur.close()
+        pg.close()
+        return {"id": row[0], "nombre": nombre}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+_DERIVACION_SELECT = """
+    SELECT d.id_derivacion, d.mes, d.nro_disposicion, d.fecha,
+           d.afiliado_documento, d.afiliado_nombre, d.afiliado_credencial,
+           d.afiliado_edad, d.afiliado_sexo, d.expediente,
+           d.tipo_patologia, d.diagnostico, d.tratamiento, d.fecha_turno,
+           d.creado_en,
+           dp.destino, dp.id_cobertura, c.nombre,
+           dp.centro_medico, dp.monto_prestacion,
+           dt.id_tipo_traslado, tt.nombre,
+           dt.cant_acompanantes, dt.monto_traslado,
+           da.id_cobertura_alojamiento, ca.nombre,
+           da.id_tipo_alojamiento, ta.nombre,
+           da.lugar_alojamiento, da.cant_noches, da.monto_alojamiento
+    FROM derivacion d
+    LEFT JOIN derivacion_prestacion dp ON dp.id_derivacion = d.id_derivacion
+    LEFT JOIN cobertura c ON c.id = dp.id_cobertura
+    LEFT JOIN derivacion_traslado dt ON dt.id_derivacion = d.id_derivacion
+    LEFT JOIN tipo_traslado tt ON tt.id = dt.id_tipo_traslado
+    LEFT JOIN derivacion_alojamiento da ON da.id_derivacion = d.id_derivacion
+    LEFT JOIN cobertura ca ON ca.id = da.id_cobertura_alojamiento
+    LEFT JOIN tipo_alojamiento ta ON ta.id = da.id_tipo_alojamiento
+"""
+
+
+def _row_to_derivacion(r):
+    return {
+        "id": r[0],
+        "mes": r[1],
+        "nro_disposicion": r[2],
+        "fecha": r[3].strftime("%Y-%m-%d") if r[3] else None,
+        "afiliado_documento": r[4],
+        "afiliado_nombre": r[5],
+        "afiliado_credencial": r[6],
+        "afiliado_edad": r[7],
+        "afiliado_sexo": r[8],
+        "expediente": r[9],
+        "tipo_patologia": r[10],
+        "diagnostico": r[11],
+        "tratamiento": r[12],
+        "fecha_turno": r[13].strftime("%Y-%m-%d") if r[13] else None,
+        "creado_en": r[14].isoformat() if r[14] else None,
+        "destino": r[15],
+        "id_cobertura": r[16],
+        "cobertura_prestacion": r[17],
+        "centro_medico": r[18],
+        "monto_prestacion": float(r[19]) if r[19] is not None else None,
+        "id_tipo_traslado": r[20],
+        "tipo_traslado": r[21],
+        "cant_acompanantes": r[22],
+        "monto_traslado": float(r[23]) if r[23] is not None else None,
+        "id_cobertura_alojamiento": r[24],
+        "cobertura_alojamiento": r[25],
+        "id_tipo_alojamiento": r[26],
+        "tipo_alojamiento": r[27],
+        "lugar_alojamiento": r[28],
+        "cant_noches": r[29],
+        "monto_alojamiento": float(r[30]) if r[30] is not None else None,
+    }
 
 
 @app.get("/derivaciones")
@@ -1138,66 +1350,17 @@ def listar_derivaciones(mes: str = "", token: str | None = Depends(oauth2_scheme
         cur = pg.cursor()
         if mes:
             cur.execute(
-                """SELECT id, mes, nro_disposicion, fecha, afiliado_documento,
-                          afiliado_nombre, afiliado_credencial, afiliado_edad,
-                          afiliado_sexo, destino, cobertura_prestacion, centro_medico,
-                          monto_prestacion, expediente, cant_acompanantes, tipo_traslado,
-                          monto_traslado, cobertura_alojamiento, tipo_alojamiento,
-                          lugar_alojamiento, cant_noches_alojamiento, monto_alojamiento,
-                          tipo_patologia, diagnostico, tratamiento, fecha_turno, creado_en
-                   FROM derivaciones
-                   WHERE mes = %s
-                   ORDER BY fecha, id""",
-                (f"{mes}-01",),
+                _DERIVACION_SELECT + " WHERE d.mes = %s ORDER BY d.fecha, d.id_derivacion",
+                (mes,),
             )
         else:
             cur.execute(
-                """SELECT id, mes, nro_disposicion, fecha, afiliado_documento,
-                          afiliado_nombre, afiliado_credencial, afiliado_edad,
-                          afiliado_sexo, destino, cobertura_prestacion, centro_medico,
-                          monto_prestacion, expediente, cant_acompanantes, tipo_traslado,
-                          monto_traslado, cobertura_alojamiento, tipo_alojamiento,
-                          lugar_alojamiento, cant_noches_alojamiento, monto_alojamiento,
-                          tipo_patologia, diagnostico, tratamiento, fecha_turno, creado_en
-                   FROM derivaciones
-                   ORDER BY mes DESC, fecha, id
-                   LIMIT 200"""
+                _DERIVACION_SELECT + " ORDER BY d.mes DESC, d.fecha, d.id_derivacion LIMIT 200"
             )
         rows = cur.fetchall()
         cur.close()
         pg.close()
-        return [
-            {
-                "id": r[0],
-                "mes": r[1].strftime("%Y-%m") if r[1] else None,
-                "nro_disposicion": r[2],
-                "fecha": r[3].strftime("%Y-%m-%d") if r[3] else None,
-                "afiliado_documento": r[4],
-                "afiliado_nombre": r[5],
-                "afiliado_credencial": r[6],
-                "afiliado_edad": r[7],
-                "afiliado_sexo": r[8],
-                "destino": r[9],
-                "cobertura_prestacion": r[10],
-                "centro_medico": r[11],
-                "monto_prestacion": float(r[12]) if r[12] is not None else None,
-                "expediente": r[13],
-                "cant_acompanantes": r[14],
-                "tipo_traslado": r[15],
-                "monto_traslado": float(r[16]) if r[16] is not None else None,
-                "cobertura_alojamiento": r[17],
-                "tipo_alojamiento": r[18],
-                "lugar_alojamiento": r[19],
-                "cant_noches_alojamiento": r[20],
-                "monto_alojamiento": float(r[21]) if r[21] is not None else None,
-                "tipo_patologia": r[22],
-                "diagnostico": r[23],
-                "tratamiento": r[24],
-                "fecha_turno": r[25].strftime("%Y-%m-%d") if r[25] else None,
-                "creado_en": r[26].isoformat() if r[26] else None,
-            }
-            for r in rows
-        ]
+        return [_row_to_derivacion(r) for r in rows]
     except HTTPException:
         raise
     except Exception as e:
@@ -1214,7 +1377,7 @@ def listar_meses_derivaciones(token: str | None = Depends(oauth2_scheme)):
         cur = pg.cursor()
         cur.execute(
             """SELECT DISTINCT mes, COUNT(*) as total
-               FROM derivaciones
+               FROM derivacion
                GROUP BY mes
                ORDER BY mes DESC"""
         )
@@ -1222,7 +1385,7 @@ def listar_meses_derivaciones(token: str | None = Depends(oauth2_scheme)):
         cur.close()
         pg.close()
         return [
-            {"mes": r[0].strftime("%Y-%m"), "total": r[1]}
+            {"mes": r[0], "total": r[1]}
             for r in rows
         ]
     except Exception as e:
@@ -1231,7 +1394,7 @@ def listar_meses_derivaciones(token: str | None = Depends(oauth2_scheme)):
 
 @app.post("/derivaciones")
 def crear_derivacion(datos: DerivacionRequest, token: str | None = Depends(oauth2_scheme)):
-    uid, _ = _extraer_usuario(token)
+    uid, uemail = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
     if _solo_lectura(_extraer_roles(token)):
@@ -1240,46 +1403,54 @@ def crear_derivacion(datos: DerivacionRequest, token: str | None = Depends(oauth
         pg = get_pg_connection()
         cur = pg.cursor()
         cur.execute(
-            """INSERT INTO derivaciones
-                   (mes, nro_disposicion, fecha, afiliado_documento, afiliado_nombre,
-                    afiliado_credencial, afiliado_edad, afiliado_sexo, destino,
-                    cobertura_prestacion, centro_medico, monto_prestacion, expediente,
-                    cant_acompanantes, tipo_traslado, monto_traslado, cobertura_alojamiento,
-                    tipo_alojamiento, lugar_alojamiento, cant_noches_alojamiento,
-                    monto_alojamiento, tipo_patologia, diagnostico, tratamiento,
-                    fecha_turno, creado_por)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-               RETURNING id""",
+            """INSERT INTO derivacion
+                   (mes, nro_disposicion, fecha, expediente,
+                    afiliado_documento, afiliado_nombre, afiliado_credencial,
+                    afiliado_edad, afiliado_sexo,
+                    tipo_patologia, diagnostico, tratamiento, fecha_turno, creado_por)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+               RETURNING id_derivacion""",
             (
-                f"{datos.mes}-01",
+                datos.mes,
                 _to_str(datos.nro_disposicion),
                 _to_fecha_sql(datos.fecha),
+                _to_str(datos.expediente),
                 datos.afiliado_documento,
                 _to_str(datos.afiliado_nombre),
                 _to_str(datos.afiliado_credencial),
                 datos.afiliado_edad,
                 _to_str(datos.afiliado_sexo),
-                _to_str(datos.destino),
-                _to_str(datos.cobertura_prestacion),
-                _to_str(datos.centro_medico),
-                datos.monto_prestacion,
-                _to_str(datos.expediente),
-                datos.cant_acompanantes,
-                _to_str(datos.tipo_traslado),
-                datos.monto_traslado,
-                _to_str(datos.cobertura_alojamiento),
-                _to_str(datos.tipo_alojamiento),
-                _to_str(datos.lugar_alojamiento),
-                datos.cant_noches_alojamiento,
-                datos.monto_alojamiento,
                 _to_str(datos.tipo_patologia),
                 _to_str(datos.diagnostico),
                 _to_str(datos.tratamiento),
                 _to_fecha_sql(datos.fecha_turno),
-                uid,
+                uemail or str(uid),
             ),
         )
         new_id = cur.fetchone()[0]
+        cur.execute(
+            """INSERT INTO derivacion_prestacion
+                   (id_derivacion, destino, id_cobertura, centro_medico, monto_prestacion)
+               VALUES (%s,%s,%s,%s,%s)""",
+            (new_id, _to_str(datos.destino), datos.id_cobertura,
+             _to_str(datos.centro_medico), datos.monto_prestacion),
+        )
+        if datos.id_tipo_traslado or datos.cant_acompanantes or datos.monto_traslado:
+            cur.execute(
+                """INSERT INTO derivacion_traslado
+                       (id_derivacion, id_tipo_traslado, cant_acompanantes, monto_traslado)
+                   VALUES (%s,%s,%s,%s)""",
+                (new_id, datos.id_tipo_traslado, datos.cant_acompanantes or 0, datos.monto_traslado),
+            )
+        if datos.id_cobertura_alojamiento or datos.id_tipo_alojamiento or datos.lugar_alojamiento or datos.cant_noches or datos.monto_alojamiento:
+            cur.execute(
+                """INSERT INTO derivacion_alojamiento
+                       (id_derivacion, id_cobertura_alojamiento, id_tipo_alojamiento,
+                        lugar_alojamiento, cant_noches, monto_alojamiento)
+                   VALUES (%s,%s,%s,%s,%s,%s)""",
+                (new_id, datos.id_cobertura_alojamiento, datos.id_tipo_alojamiento,
+                 _to_str(datos.lugar_alojamiento), datos.cant_noches, datos.monto_alojamiento),
+            )
         pg.commit()
         cur.close()
         pg.close()
@@ -1300,44 +1471,28 @@ def actualizar_derivacion(derivacion_id: int, datos: DerivacionRequest, token: s
     try:
         pg = get_pg_connection()
         cur = pg.cursor()
-        cur.execute("SELECT id FROM derivaciones WHERE id = %s", (derivacion_id,))
+        cur.execute("SELECT id_derivacion FROM derivacion WHERE id_derivacion = %s", (derivacion_id,))
         if cur.fetchone() is None:
             cur.close()
             pg.close()
             raise HTTPException(status_code=404, detail="Derivación no encontrada")
         cur.execute(
-            """UPDATE derivaciones SET
-                   mes=%s, nro_disposicion=%s, fecha=%s, afiliado_documento=%s,
-                   afiliado_nombre=%s, afiliado_credencial=%s, afiliado_edad=%s,
-                   afiliado_sexo=%s, destino=%s, cobertura_prestacion=%s,
-                   centro_medico=%s, monto_prestacion=%s, expediente=%s,
-                   cant_acompanantes=%s, tipo_traslado=%s, monto_traslado=%s,
-                   cobertura_alojamiento=%s, tipo_alojamiento=%s, lugar_alojamiento=%s,
-                   cant_noches_alojamiento=%s, monto_alojamiento=%s, tipo_patologia=%s,
-                   diagnostico=%s, tratamiento=%s, fecha_turno=%s
-               WHERE id=%s""",
+            """UPDATE derivacion SET
+                   mes=%s, nro_disposicion=%s, fecha=%s, expediente=%s,
+                   afiliado_documento=%s, afiliado_nombre=%s, afiliado_credencial=%s,
+                   afiliado_edad=%s, afiliado_sexo=%s,
+                   tipo_patologia=%s, diagnostico=%s, tratamiento=%s, fecha_turno=%s
+               WHERE id_derivacion=%s""",
             (
-                f"{datos.mes}-01",
+                datos.mes,
                 _to_str(datos.nro_disposicion),
                 _to_fecha_sql(datos.fecha),
+                _to_str(datos.expediente),
                 datos.afiliado_documento,
                 _to_str(datos.afiliado_nombre),
                 _to_str(datos.afiliado_credencial),
                 datos.afiliado_edad,
                 _to_str(datos.afiliado_sexo),
-                _to_str(datos.destino),
-                _to_str(datos.cobertura_prestacion),
-                _to_str(datos.centro_medico),
-                datos.monto_prestacion,
-                _to_str(datos.expediente),
-                datos.cant_acompanantes,
-                _to_str(datos.tipo_traslado),
-                datos.monto_traslado,
-                _to_str(datos.cobertura_alojamiento),
-                _to_str(datos.tipo_alojamiento),
-                _to_str(datos.lugar_alojamiento),
-                datos.cant_noches_alojamiento,
-                datos.monto_alojamiento,
                 _to_str(datos.tipo_patologia),
                 _to_str(datos.diagnostico),
                 _to_str(datos.tratamiento),
@@ -1345,6 +1500,44 @@ def actualizar_derivacion(derivacion_id: int, datos: DerivacionRequest, token: s
                 derivacion_id,
             ),
         )
+        cur.execute(
+            """INSERT INTO derivacion_prestacion (id_derivacion, destino, id_cobertura, centro_medico, monto_prestacion)
+               VALUES (%s,%s,%s,%s,%s)
+               ON CONFLICT (id_derivacion) DO UPDATE SET
+                   destino=EXCLUDED.destino, id_cobertura=EXCLUDED.id_cobertura,
+                   centro_medico=EXCLUDED.centro_medico, monto_prestacion=EXCLUDED.monto_prestacion""",
+            (derivacion_id, _to_str(datos.destino), datos.id_cobertura,
+             _to_str(datos.centro_medico), datos.monto_prestacion),
+        )
+        if datos.id_tipo_traslado or datos.cant_acompanantes or datos.monto_traslado:
+            cur.execute(
+                """INSERT INTO derivacion_traslado (id_derivacion, id_tipo_traslado, cant_acompanantes, monto_traslado)
+                   VALUES (%s,%s,%s,%s)
+                   ON CONFLICT (id_derivacion) DO UPDATE SET
+                       id_tipo_traslado=EXCLUDED.id_tipo_traslado,
+                       cant_acompanantes=EXCLUDED.cant_acompanantes,
+                       monto_traslado=EXCLUDED.monto_traslado""",
+                (derivacion_id, datos.id_tipo_traslado, datos.cant_acompanantes or 0, datos.monto_traslado),
+            )
+        else:
+            cur.execute("DELETE FROM derivacion_traslado WHERE id_derivacion = %s", (derivacion_id,))
+        if datos.id_cobertura_alojamiento or datos.id_tipo_alojamiento or datos.lugar_alojamiento or datos.cant_noches or datos.monto_alojamiento:
+            cur.execute(
+                """INSERT INTO derivacion_alojamiento
+                       (id_derivacion, id_cobertura_alojamiento, id_tipo_alojamiento,
+                        lugar_alojamiento, cant_noches, monto_alojamiento)
+                   VALUES (%s,%s,%s,%s,%s,%s)
+                   ON CONFLICT (id_derivacion) DO UPDATE SET
+                       id_cobertura_alojamiento=EXCLUDED.id_cobertura_alojamiento,
+                       id_tipo_alojamiento=EXCLUDED.id_tipo_alojamiento,
+                       lugar_alojamiento=EXCLUDED.lugar_alojamiento,
+                       cant_noches=EXCLUDED.cant_noches,
+                       monto_alojamiento=EXCLUDED.monto_alojamiento""",
+                (derivacion_id, datos.id_cobertura_alojamiento, datos.id_tipo_alojamiento,
+                 _to_str(datos.lugar_alojamiento), datos.cant_noches, datos.monto_alojamiento),
+            )
+        else:
+            cur.execute("DELETE FROM derivacion_alojamiento WHERE id_derivacion = %s", (derivacion_id,))
         pg.commit()
         cur.close()
         pg.close()
@@ -1365,12 +1558,12 @@ def eliminar_derivacion(derivacion_id: int, token: str | None = Depends(oauth2_s
     try:
         pg = get_pg_connection()
         cur = pg.cursor()
-        cur.execute("SELECT id FROM derivaciones WHERE id = %s", (derivacion_id,))
+        cur.execute("SELECT id_derivacion FROM derivacion WHERE id_derivacion = %s", (derivacion_id,))
         if cur.fetchone() is None:
             cur.close()
             pg.close()
             raise HTTPException(status_code=404, detail="Derivación no encontrada")
-        cur.execute("DELETE FROM derivaciones WHERE id = %s", (derivacion_id,))
+        cur.execute("DELETE FROM derivacion WHERE id_derivacion = %s", (derivacion_id,))
         pg.commit()
         cur.close()
         pg.close()

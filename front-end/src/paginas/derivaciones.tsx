@@ -10,28 +10,37 @@ interface Derivacion {
   mes: string;
   nro_disposicion: string | null;
   fecha: string | null;
-  afiliado_documento: number;
+  afiliado_documento: string;
   afiliado_nombre: string | null;
   afiliado_credencial: string | null;
   afiliado_edad: number | null;
   afiliado_sexo: string | null;
-  destino: string | null;
-  cobertura_prestacion: string | null;
-  centro_medico: string | null;
-  monto_prestacion: number | null;
   expediente: string | null;
-  cant_acompanantes: number | null;
-  tipo_traslado: string | null;
-  monto_traslado: number | null;
-  cobertura_alojamiento: string | null;
-  tipo_alojamiento: string | null;
-  lugar_alojamiento: string | null;
-  cant_noches_alojamiento: number | null;
-  monto_alojamiento: number | null;
   tipo_patologia: string | null;
   diagnostico: string | null;
   tratamiento: string | null;
   fecha_turno: string | null;
+  destino: string | null;
+  id_cobertura: number | null;
+  cobertura_prestacion: string | null;
+  centro_medico: string | null;
+  monto_prestacion: number | null;
+  id_tipo_traslado: number | null;
+  tipo_traslado: string | null;
+  cant_acompanantes: number | null;
+  monto_traslado: number | null;
+  id_cobertura_alojamiento: number | null;
+  cobertura_alojamiento: string | null;
+  id_tipo_alojamiento: number | null;
+  tipo_alojamiento: string | null;
+  lugar_alojamiento: string | null;
+  cant_noches: number | null;
+  monto_alojamiento: number | null;
+}
+
+interface OpcionGuia {
+  id: number;
+  nombre: string;
 }
 
 interface AfiliadoBusqueda {
@@ -61,23 +70,23 @@ interface FormData {
   afiliado_credencial: string;
   afiliado_edad: number | null;
   afiliado_sexo: string;
-  destino: string;
-  cobertura_prestacion: string;
-  centro_medico: string;
-  monto_prestacion: string;
   expediente: string;
-  cant_acompanantes: string;
-  tipo_traslado: string;
-  monto_traslado: string;
-  cobertura_alojamiento: string;
-  tipo_alojamiento: string;
-  lugar_alojamiento: string;
-  cant_noches_alojamiento: string;
-  monto_alojamiento: string;
   tipo_patologia: string;
   diagnostico: string;
   tratamiento: string;
   fecha_turno: string;
+  destino: string;
+  id_cobertura: string;
+  centro_medico: string;
+  monto_prestacion: string;
+  id_tipo_traslado: string;
+  cant_acompanantes: string;
+  monto_traslado: string;
+  id_cobertura_alojamiento: string;
+  id_tipo_alojamiento: string;
+  lugar_alojamiento: string;
+  cant_noches: string;
+  monto_alojamiento: string;
 }
 
 const emptyForm: FormData = {
@@ -88,23 +97,23 @@ const emptyForm: FormData = {
   afiliado_credencial: '',
   afiliado_edad: null,
   afiliado_sexo: '',
-  destino: '',
-  cobertura_prestacion: '',
-  centro_medico: '',
-  monto_prestacion: '',
   expediente: '',
-  cant_acompanantes: '',
-  tipo_traslado: '',
-  monto_traslado: '',
-  cobertura_alojamiento: '',
-  tipo_alojamiento: '',
-  lugar_alojamiento: '',
-  cant_noches_alojamiento: '',
-  monto_alojamiento: '',
   tipo_patologia: '',
   diagnostico: '',
   tratamiento: '',
   fecha_turno: '',
+  destino: '',
+  id_cobertura: '',
+  centro_medico: '',
+  monto_prestacion: '',
+  id_tipo_traslado: '',
+  cant_acompanantes: '',
+  monto_traslado: '',
+  id_cobertura_alojamiento: '',
+  id_tipo_alojamiento: '',
+  lugar_alojamiento: '',
+  cant_noches: '',
+  monto_alojamiento: '',
 };
 
 function mesActual(): string {
@@ -163,6 +172,26 @@ export default function Derivaciones() {
   const [patologiasAfiliado, setPatologiasAfiliado] = useState<Patologia[]>([]);
   const [diagnosticosDisponibles, setDiagnosticosDisponibles] = useState<Diagnostico[]>([]);
   const [cieClave, setCieClave] = useState('');
+
+  const [coberturas, setCoberturas] = useState<OpcionGuia[]>([]);
+  const [tiposTraslado, setTiposTraslado] = useState<OpcionGuia[]>([]);
+  const [tiposAlojamiento, setTiposAlojamiento] = useState<OpcionGuia[]>([]);
+
+  useEffect(() => {
+    async function cargarGuias() {
+      try {
+        const [resCob, resTrasl, resAloj] = await Promise.all([
+          fetchAuth(`${API}/coberturas`),
+          fetchAuth(`${API}/tipos-traslado`),
+          fetchAuth(`${API}/tipos-alojamiento`),
+        ]);
+        if (resCob.ok) setCoberturas(await resCob.json());
+        if (resTrasl.ok) setTiposTraslado(await resTrasl.json());
+        if (resAloj.ok) setTiposAlojamiento(await resAloj.json());
+      } catch {}
+    }
+    cargarGuias();
+  }, []);
 
   const cargarDerivaciones = useCallback(async () => {
     if (!verificarSesion()) return;
@@ -330,28 +359,28 @@ export default function Derivaciones() {
     setForm({
       nro_disposicion: d.nro_disposicion || '',
       fecha: d.fecha || '',
-      afiliado_documento: d.afiliado_documento,
+      afiliado_documento: Number(d.afiliado_documento) || null,
       afiliado_nombre: d.afiliado_nombre || '',
       afiliado_credencial: d.afiliado_credencial || '',
       afiliado_edad: d.afiliado_edad,
       afiliado_sexo: d.afiliado_sexo || '',
-      destino: d.destino || '',
-      cobertura_prestacion: d.cobertura_prestacion || '',
-      centro_medico: d.centro_medico || '',
-      monto_prestacion: d.monto_prestacion != null ? String(d.monto_prestacion) : '',
       expediente: d.expediente || '',
-      cant_acompanantes: d.cant_acompanantes != null ? String(d.cant_acompanantes) : '',
-      tipo_traslado: d.tipo_traslado || '',
-      monto_traslado: d.monto_traslado != null ? String(d.monto_traslado) : '',
-      cobertura_alojamiento: d.cobertura_alojamiento || '',
-      tipo_alojamiento: d.tipo_alojamiento || '',
-      lugar_alojamiento: d.lugar_alojamiento || '',
-      cant_noches_alojamiento: d.cant_noches_alojamiento != null ? String(d.cant_noches_alojamiento) : '',
-      monto_alojamiento: d.monto_alojamiento != null ? String(d.monto_alojamiento) : '',
       tipo_patologia: d.tipo_patologia || '',
       diagnostico: d.diagnostico || '',
       tratamiento: d.tratamiento || '',
       fecha_turno: d.fecha_turno || '',
+      destino: d.destino || '',
+      id_cobertura: d.id_cobertura != null ? String(d.id_cobertura) : '',
+      centro_medico: d.centro_medico || '',
+      monto_prestacion: d.monto_prestacion != null ? String(d.monto_prestacion) : '',
+      id_tipo_traslado: d.id_tipo_traslado != null ? String(d.id_tipo_traslado) : '',
+      cant_acompanantes: d.cant_acompanantes != null ? String(d.cant_acompanantes) : '',
+      monto_traslado: d.monto_traslado != null ? String(d.monto_traslado) : '',
+      id_cobertura_alojamiento: d.id_cobertura_alojamiento != null ? String(d.id_cobertura_alojamiento) : '',
+      id_tipo_alojamiento: d.id_tipo_alojamiento != null ? String(d.id_tipo_alojamiento) : '',
+      lugar_alojamiento: d.lugar_alojamiento || '',
+      cant_noches: d.cant_noches != null ? String(d.cant_noches) : '',
+      monto_alojamiento: d.monto_alojamiento != null ? String(d.monto_alojamiento) : '',
     });
     setEditId(d.id);
     setFormError('');
@@ -361,7 +390,7 @@ export default function Derivaciones() {
     setDiagnosticosDisponibles([]);
     setCieClave('');
     setVista('editar');
-    await cargarPatologias(d.afiliado_documento);
+    await cargarPatologias(Number(d.afiliado_documento));
   }
 
   function volverALista() {
@@ -399,28 +428,28 @@ export default function Derivaciones() {
       mes: mesSeleccionado,
       nro_disposicion: form.nro_disposicion || null,
       fecha: form.fecha || null,
-      afiliado_documento: form.afiliado_documento,
+      afiliado_documento: String(form.afiliado_documento),
       afiliado_nombre: form.afiliado_nombre || null,
       afiliado_credencial: form.afiliado_credencial || null,
       afiliado_edad: form.afiliado_edad,
       afiliado_sexo: form.afiliado_sexo || null,
-      destino: form.destino || null,
-      cobertura_prestacion: form.cobertura_prestacion || null,
-      centro_medico: form.centro_medico || null,
-      monto_prestacion: form.monto_prestacion ? parseFloat(form.monto_prestacion) : null,
       expediente: form.expediente || null,
-      cant_acompanantes: form.cant_acompanantes ? parseInt(form.cant_acompanantes) : null,
-      tipo_traslado: form.tipo_traslado || null,
-      monto_traslado: form.monto_traslado ? parseFloat(form.monto_traslado) : null,
-      cobertura_alojamiento: form.cobertura_alojamiento || null,
-      tipo_alojamiento: form.tipo_alojamiento || null,
-      lugar_alojamiento: form.lugar_alojamiento || null,
-      cant_noches_alojamiento: form.cant_noches_alojamiento ? parseInt(form.cant_noches_alojamiento) : null,
-      monto_alojamiento: form.monto_alojamiento ? parseFloat(form.monto_alojamiento) : null,
       tipo_patologia: form.tipo_patologia || null,
       diagnostico: form.diagnostico || null,
       tratamiento: form.tratamiento || null,
       fecha_turno: form.fecha_turno || null,
+      destino: form.destino || null,
+      id_cobertura: form.id_cobertura ? parseInt(form.id_cobertura) : null,
+      centro_medico: form.centro_medico || null,
+      monto_prestacion: form.monto_prestacion ? parseFloat(form.monto_prestacion) : null,
+      id_tipo_traslado: form.id_tipo_traslado ? parseInt(form.id_tipo_traslado) : null,
+      cant_acompanantes: form.cant_acompanantes ? parseInt(form.cant_acompanantes) : null,
+      monto_traslado: form.monto_traslado ? parseFloat(form.monto_traslado) : null,
+      id_cobertura_alojamiento: form.id_cobertura_alojamiento ? parseInt(form.id_cobertura_alojamiento) : null,
+      id_tipo_alojamiento: form.id_tipo_alojamiento ? parseInt(form.id_tipo_alojamiento) : null,
+      lugar_alojamiento: form.lugar_alojamiento || null,
+      cant_noches: form.cant_noches ? parseInt(form.cant_noches) : null,
+      monto_alojamiento: form.monto_alojamiento ? parseFloat(form.monto_alojamiento) : null,
     };
 
     try {
@@ -663,7 +692,12 @@ export default function Derivaciones() {
                     </div>
                     <div className="dv-form-field">
                       <label className="dv-form-label">Cobertura Prestación</label>
-                      <input className="dv-form-input" value={form.cobertura_prestacion} onChange={(e) => updateForm('cobertura_prestacion', e.target.value)} />
+                      <select className="dv-form-input" value={form.id_cobertura} onChange={(e) => updateForm('id_cobertura', e.target.value)}>
+                        <option value="">— Seleccionar —</option>
+                        {coberturas.map((c) => (
+                          <option key={c.id} value={c.id}>{c.nombre}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
 
@@ -684,7 +718,12 @@ export default function Derivaciones() {
                     </div>
                     <div className="dv-form-field">
                       <label className="dv-form-label">Tipo</label>
-                      <input className="dv-form-input" value={form.tipo_traslado} onChange={(e) => updateForm('tipo_traslado', e.target.value)} />
+                      <select className="dv-form-input" value={form.id_tipo_traslado} onChange={(e) => updateForm('id_tipo_traslado', e.target.value)}>
+                        <option value="">— Seleccionar —</option>
+                        {tiposTraslado.map((t) => (
+                          <option key={t.id} value={t.id}>{t.nombre}</option>
+                        ))}
+                      </select>
                     </div>
                     <div className="dv-form-field">
                       <label className="dv-form-label">Monto</label>
@@ -700,11 +739,21 @@ export default function Derivaciones() {
                   <div className="dv-form-row-3">
                     <div className="dv-form-field">
                       <label className="dv-form-label">Cobertura</label>
-                      <input className="dv-form-input" value={form.cobertura_alojamiento} onChange={(e) => updateForm('cobertura_alojamiento', e.target.value)} />
+                      <select className="dv-form-input" value={form.id_cobertura_alojamiento} onChange={(e) => updateForm('id_cobertura_alojamiento', e.target.value)}>
+                        <option value="">— Seleccionar —</option>
+                        {coberturas.map((c) => (
+                          <option key={c.id} value={c.id}>{c.nombre}</option>
+                        ))}
+                      </select>
                     </div>
                     <div className="dv-form-field">
                       <label className="dv-form-label">Tipo</label>
-                      <input className="dv-form-input" value={form.tipo_alojamiento} onChange={(e) => updateForm('tipo_alojamiento', e.target.value)} />
+                      <select className="dv-form-input" value={form.id_tipo_alojamiento} onChange={(e) => updateForm('id_tipo_alojamiento', e.target.value)}>
+                        <option value="">— Seleccionar —</option>
+                        {tiposAlojamiento.map((t) => (
+                          <option key={t.id} value={t.id}>{t.nombre}</option>
+                        ))}
+                      </select>
                     </div>
                     <div className="dv-form-field">
                       <label className="dv-form-label">Lugar</label>
@@ -715,7 +764,7 @@ export default function Derivaciones() {
                   <div className="dv-form-row">
                     <div className="dv-form-field">
                       <label className="dv-form-label">Cant. noches</label>
-                      <input className="dv-form-input" type="number" value={form.cant_noches_alojamiento} onChange={(e) => updateForm('cant_noches_alojamiento', e.target.value)} />
+                      <input className="dv-form-input" type="number" value={form.cant_noches} onChange={(e) => updateForm('cant_noches', e.target.value)} />
                     </div>
                     <div className="dv-form-field">
                       <label className="dv-form-label">Monto</label>
@@ -832,7 +881,7 @@ export default function Derivaciones() {
                       <td>{d.cobertura_alojamiento || '-'}</td>
                       <td>{d.tipo_alojamiento || '-'}</td>
                       <td>{d.lugar_alojamiento || '-'}</td>
-                      <td>{d.cant_noches_alojamiento ?? '-'}</td>
+                      <td>{d.cant_noches ?? '-'}</td>
                       <td className="dv-monto-cell">{formatMonto(d.monto_alojamiento)}</td>
                       <td>{d.tipo_patologia || '-'}</td>
                       <td>{d.diagnostico || '-'}</td>
