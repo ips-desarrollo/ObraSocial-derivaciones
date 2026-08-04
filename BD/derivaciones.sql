@@ -14,6 +14,16 @@ CREATE TABLE IF NOT EXISTS tipo_alojamiento (
     nombre VARCHAR(100) NOT NULL UNIQUE
 );
 
+CREATE TABLE IF NOT EXISTS tipo_patologia (
+    id SERIAL PRIMARY KEY,
+    tipo_pat VARCHAR(100) NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS tratamiento (
+    id SERIAL PRIMARY KEY,
+    tratamiento VARCHAR(200) NOT NULL UNIQUE
+);
+
 -- Tabla principal
 CREATE TABLE IF NOT EXISTS derivacion (
     id_derivacion SERIAL PRIMARY KEY,
@@ -30,6 +40,9 @@ CREATE TABLE IF NOT EXISTS derivacion (
     diagnostico TEXT,
     tratamiento TEXT,
     fecha_turno DATE,
+    id_tipo_patologia INTEGER REFERENCES tipo_patologia(id),
+    id_tratamiento INTEGER REFERENCES tratamiento(id),
+    diagnostico_tratamiento TEXT,
     creado_en TIMESTAMP DEFAULT NOW(),
     creado_por VARCHAR(100)
 );

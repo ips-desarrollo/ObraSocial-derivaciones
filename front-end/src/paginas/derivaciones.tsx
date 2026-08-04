@@ -20,6 +20,11 @@ interface Derivacion {
   diagnostico: string | null;
   tratamiento: string | null;
   fecha_turno: string | null;
+  id_tipo_patologia: number | null;
+  id_tratamiento: number | null;
+  tipo_patologia_nombre: string | null;
+  tratamiento_nombre: string | null;
+  diagnostico_tratamiento: string | null;
   destino: string | null;
   id_cobertura: number | null;
   cobertura_prestacion: string | null;
@@ -75,6 +80,9 @@ interface FormData {
   diagnostico: string;
   tratamiento: string;
   fecha_turno: string;
+  id_tipo_patologia: string;
+  id_tratamiento: string;
+  diagnostico_tratamiento: string;
   destino: string;
   id_cobertura: string;
   centro_medico: string;
@@ -102,6 +110,9 @@ const emptyForm: FormData = {
   diagnostico: '',
   tratamiento: '',
   fecha_turno: '',
+  id_tipo_patologia: '',
+  id_tratamiento: '',
+  diagnostico_tratamiento: '',
   destino: '',
   id_cobertura: '',
   centro_medico: '',
@@ -176,18 +187,24 @@ export default function Derivaciones() {
   const [coberturas, setCoberturas] = useState<OpcionGuia[]>([]);
   const [tiposTraslado, setTiposTraslado] = useState<OpcionGuia[]>([]);
   const [tiposAlojamiento, setTiposAlojamiento] = useState<OpcionGuia[]>([]);
+  const [tiposPatologia, setTiposPatologia] = useState<OpcionGuia[]>([]);
+  const [tratamientos, setTratamientos] = useState<OpcionGuia[]>([]);
 
   useEffect(() => {
     async function cargarGuias() {
       try {
-        const [resCob, resTrasl, resAloj] = await Promise.all([
+        const [resCob, resTrasl, resAloj, resTipoPat, resTrat] = await Promise.all([
           fetchAuth(`${API}/coberturas`),
           fetchAuth(`${API}/tipos-traslado`),
           fetchAuth(`${API}/tipos-alojamiento`),
+          fetchAuth(`${API}/tipos-patologia`),
+          fetchAuth(`${API}/tratamientos`),
         ]);
         if (resCob.ok) setCoberturas(await resCob.json());
         if (resTrasl.ok) setTiposTraslado(await resTrasl.json());
         if (resAloj.ok) setTiposAlojamiento(await resAloj.json());
+        if (resTipoPat.ok) setTiposPatologia(await resTipoPat.json());
+        if (resTrat.ok) setTratamientos(await resTrat.json());
       } catch {}
     }
     cargarGuias();
@@ -381,6 +398,9 @@ export default function Derivaciones() {
       lugar_alojamiento: d.lugar_alojamiento || '',
       cant_noches: d.cant_noches != null ? String(d.cant_noches) : '',
       monto_alojamiento: d.monto_alojamiento != null ? String(d.monto_alojamiento) : '',
+      id_tipo_patologia: d.id_tipo_patologia != null ? String(d.id_tipo_patologia) : '',
+      id_tratamiento: d.id_tratamiento != null ? String(d.id_tratamiento) : '',
+      diagnostico_tratamiento: d.diagnostico_tratamiento || '',
     });
     setEditId(d.id);
     setFormError('');
@@ -438,6 +458,9 @@ export default function Derivaciones() {
       diagnostico: form.diagnostico || null,
       tratamiento: form.tratamiento || null,
       fecha_turno: form.fecha_turno || null,
+      id_tipo_patologia: form.id_tipo_patologia ? parseInt(form.id_tipo_patologia) : null,
+      id_tratamiento: form.id_tratamiento ? parseInt(form.id_tratamiento) : null,
+      diagnostico_tratamiento: form.diagnostico_tratamiento || null,
       destino: form.destino || null,
       id_cobertura: form.id_cobertura ? parseInt(form.id_cobertura) : null,
       centro_medico: form.centro_medico || null,
@@ -598,31 +621,61 @@ export default function Derivaciones() {
                   </div>
                 </div>
 
-                {/* Patología */}
+                {/* Patología cargada (read-only) */}
                 <div className="dv-form-group">
-                  <p className="dv-form-section">Patología y Tratamiento</p>
+                  <p className="dv-form-section">Patología cargada</p>
+
+                  <div className="dv-form-row">
+                    <div className="dv-form-field">
+                      <label className="dv-form-label">Patología</label>
+                      <input className="dv-form-input dv-form-input--ro" value={form.tipo_patologia} readOnly />
+                    </div>
+                    <div className="dv-form-field">
+                      <label className="dv-form-label">Fecha de turno</label>
+                      <input className="dv-form-input dv-form-input--ro" type="date" value={form.fecha_turno} readOnly />
+                    </div>
+                  </div>
+
+                  <div className="dv-form-field">
+                    <label className="dv-form-label">Diagnóstico</label>
+                    <textarea
+                      className="dv-form-textarea dv-form-input--ro"
+                      value={form.diagnostico}
+                      readOnly
+                    />
+                  </div>
+                </div>
+
+                {/* Tratamiento */}
+                <div className="dv-form-group">
+                  <p className="dv-form-section">Tratamiento</p>
 
                   <div className="dv-form-row">
                     <div className="dv-form-field">
                       <label className="dv-form-label">Tipo de patología</label>
-                      {patologiasAfiliado.length > 0 ? (
-                        <select
-                          className="dv-form-input"
-                          value={form.tipo_patologia}
-                          onChange={(e) => seleccionarPatologia(e.target.value)}
-                        >
-                          <option value="">— Seleccionar —</option>
-                          {patologiasAfiliado.map((p) => (
-                            <option key={p.pat_id} value={p.nombre}>{p.nombre}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <input className="dv-form-input" value={form.tipo_patologia} onChange={(e) => updateForm('tipo_patologia', e.target.value)} placeholder="Sin patologías registradas" />
-                      )}
+                      <select
+                        className="dv-form-input"
+                        value={form.id_tipo_patologia}
+                        onChange={(e) => updateForm('id_tipo_patologia', e.target.value)}
+                      >
+                        <option value="">— Seleccionar —</option>
+                        {tiposPatologia.map((tp) => (
+                          <option key={tp.id} value={String(tp.id)}>{tp.nombre}</option>
+                        ))}
+                      </select>
                     </div>
                     <div className="dv-form-field">
-                      <label className="dv-form-label">Fecha de turno</label>
-                      <input className="dv-form-input" type="date" value={form.fecha_turno} onChange={(e) => updateForm('fecha_turno', e.target.value)} />
+                      <label className="dv-form-label">Tratamiento</label>
+                      <select
+                        className="dv-form-input"
+                        value={form.id_tratamiento}
+                        onChange={(e) => updateForm('id_tratamiento', e.target.value)}
+                      >
+                        <option value="">— Seleccionar —</option>
+                        {tratamientos.map((t) => (
+                          <option key={t.id} value={String(t.id)}>{t.nombre}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
 
@@ -630,29 +683,9 @@ export default function Derivaciones() {
                     <label className="dv-form-label">Diagnóstico</label>
                     <textarea
                       className="dv-form-textarea"
-                      value={form.diagnostico}
-                      onChange={(e) => updateForm('diagnostico', e.target.value)}
-                      placeholder={patologiasAfiliado.length > 0 ? "Diagnóstico de la patología" : "Sin patología registrada"}
+                      value={form.diagnostico_tratamiento}
+                      onChange={(e) => updateForm('diagnostico_tratamiento', e.target.value)}
                     />
-                    {diagnosticosDisponibles.length > 1 && (
-                      <select
-                        className="dv-form-input"
-                        style={{ marginTop: '4px' }}
-                        onChange={(e) => {
-                          if (e.target.value) updateForm('diagnostico', e.target.value);
-                        }}
-                      >
-                        <option value="">— Opciones adicionales de diagnóstico —</option>
-                        {diagnosticosDisponibles.map((d, i) => (
-                          <option key={i} value={d.descripcion}>{d.descripcion}</option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
-
-                  <div className="dv-form-field">
-                    <label className="dv-form-label">Tratamiento</label>
-                    <textarea className="dv-form-textarea" value={form.tratamiento} onChange={(e) => updateForm('tratamiento', e.target.value)} />
                   </div>
                 </div>
               </div>
