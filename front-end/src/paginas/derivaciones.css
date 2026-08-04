@@ -444,6 +444,21 @@
   padding: 0.45rem 0.7rem;
 }
 
+.dv-nuevo-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.dv-nuevo-row .dv-form-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.dv-nuevo-row .dv-btn--sm {
+  flex-shrink: 0;
+}
+
 .dv-form-actions {
   display: flex;
   gap: 0.75rem;

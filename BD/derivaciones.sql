@@ -14,6 +14,16 @@ CREATE TABLE IF NOT EXISTS tipo_alojamiento (
     nombre VARCHAR(100) NOT NULL UNIQUE
 );
 
+CREATE TABLE IF NOT EXISTS centro_medico (
+    id SERIAL PRIMARY KEY,
+    nombre VARCHAR(200) NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS lugar_alojamiento (
+    id SERIAL PRIMARY KEY,
+    nombre VARCHAR(200) NOT NULL UNIQUE
+);
+
 CREATE TABLE IF NOT EXISTS tipo_patologia (
     id SERIAL PRIMARY KEY,
     tipo_pat VARCHAR(100) NOT NULL UNIQUE
@@ -54,6 +64,7 @@ CREATE TABLE IF NOT EXISTS derivacion_prestacion (
     destino VARCHAR(200),
     id_cobertura INTEGER REFERENCES cobertura(id),
     centro_medico VARCHAR(200),
+    id_centro_medico INTEGER REFERENCES centro_medico(id),
     monto_prestacion NUMERIC(12, 2)
 );
 
@@ -73,6 +84,7 @@ CREATE TABLE IF NOT EXISTS derivacion_alojamiento (
     id_cobertura_alojamiento INTEGER REFERENCES cobertura(id),
     id_tipo_alojamiento INTEGER REFERENCES tipo_alojamiento(id),
     lugar_alojamiento VARCHAR(200),
+    id_lugar_alojamiento INTEGER REFERENCES lugar_alojamiento(id),
     cant_noches INTEGER,
     monto_alojamiento NUMERIC(12, 2)
 );

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import NavBar from './NavBar';
+import SelectConCarga from './SelectConCarga';
 import logoSiglas from '../multimedia/logo-siglas.svg';
 import { fetchAuth, verificarSesion, API } from '../auth';
 import './globales.css';
@@ -30,6 +31,7 @@ interface Derivacion {
   cobertura_prestacion: string | null;
   centro_medico: string | null;
   monto_prestacion: number | null;
+  id_centro_medico: number | null;
   id_tipo_traslado: number | null;
   tipo_traslado: string | null;
   cant_acompanantes: number | null;
@@ -39,6 +41,7 @@ interface Derivacion {
   id_tipo_alojamiento: number | null;
   tipo_alojamiento: string | null;
   lugar_alojamiento: string | null;
+  id_lugar_alojamiento: number | null;
   cant_noches: number | null;
   monto_alojamiento: number | null;
 }
@@ -85,14 +88,14 @@ interface FormData {
   diagnostico_tratamiento: string;
   destino: string;
   id_cobertura: string;
-  centro_medico: string;
+  id_centro_medico: string;
   monto_prestacion: string;
   id_tipo_traslado: string;
   cant_acompanantes: string;
   monto_traslado: string;
   id_cobertura_alojamiento: string;
   id_tipo_alojamiento: string;
-  lugar_alojamiento: string;
+  id_lugar_alojamiento: string;
   cant_noches: string;
   monto_alojamiento: string;
 }
@@ -115,14 +118,14 @@ const emptyForm: FormData = {
   diagnostico_tratamiento: '',
   destino: '',
   id_cobertura: '',
-  centro_medico: '',
+  id_centro_medico: '',
   monto_prestacion: '',
   id_tipo_traslado: '',
   cant_acompanantes: '',
   monto_traslado: '',
   id_cobertura_alojamiento: '',
   id_tipo_alojamiento: '',
-  lugar_alojamiento: '',
+  id_lugar_alojamiento: '',
   cant_noches: '',
   monto_alojamiento: '',
 };
@@ -189,25 +192,48 @@ export default function Derivaciones() {
   const [tiposAlojamiento, setTiposAlojamiento] = useState<OpcionGuia[]>([]);
   const [tiposPatologia, setTiposPatologia] = useState<OpcionGuia[]>([]);
   const [tratamientos, setTratamientos] = useState<OpcionGuia[]>([]);
+  const [centrosMedicos, setCentrosMedicos] = useState<OpcionGuia[]>([]);
+  const [lugaresAlojamiento, setLugaresAlojamiento] = useState<OpcionGuia[]>([]);
 
   useEffect(() => {
     async function cargarGuias() {
       try {
-        const [resCob, resTrasl, resAloj, resTipoPat, resTrat] = await Promise.all([
+        const [resCob, resTrasl, resAloj, resTipoPat, resTrat, resCentro, resLugar] = await Promise.all([
           fetchAuth(`${API}/coberturas`),
           fetchAuth(`${API}/tipos-traslado`),
           fetchAuth(`${API}/tipos-alojamiento`),
           fetchAuth(`${API}/tipos-patologia`),
           fetchAuth(`${API}/tratamientos`),
+          fetchAuth(`${API}/centros-medicos`),
+          fetchAuth(`${API}/lugares-alojamiento`),
         ]);
         if (resCob.ok) setCoberturas(await resCob.json());
         if (resTrasl.ok) setTiposTraslado(await resTrasl.json());
         if (resAloj.ok) setTiposAlojamiento(await resAloj.json());
         if (resTipoPat.ok) setTiposPatologia(await resTipoPat.json());
         if (resTrat.ok) setTratamientos(await resTrat.json());
+        if (resCentro.ok) setCentrosMedicos(await resCentro.json());
+        if (resLugar.ok) setLugaresAlojamiento(await resLugar.json());
       } catch {}
     }
     cargarGuias();
+  }, []);
+
+  // Crea una opción de catálogo vía POST y la agrega a la lista en memoria.
+  const crearOpcion = useCallback(async (
+    endpoint: string,
+    setter: React.Dispatch<React.SetStateAction<OpcionGuia[]>>,
+    nombre: string,
+  ): Promise<OpcionGuia | null> => {
+    const res = await fetchAuth(`${API}/${endpoint}?nombre=${encodeURIComponent(nombre)}`, { method: 'POST' });
+    if (!res.ok) return null;
+    const op: OpcionGuia = await res.json();
+    setter(prev =>
+      prev.some(x => x.id === op.id)
+        ? prev
+        : [...prev, op].sort((a, b) => a.nombre.localeCompare(b.nombre)),
+    );
+    return op;
   }, []);
 
   const cargarDerivaciones = useCallback(async () => {
@@ -388,14 +414,14 @@ export default function Derivaciones() {
       fecha_turno: d.fecha_turno || '',
       destino: d.destino || '',
       id_cobertura: d.id_cobertura != null ? String(d.id_cobertura) : '',
-      centro_medico: d.centro_medico || '',
+      id_centro_medico: d.id_centro_medico != null ? String(d.id_centro_medico) : '',
       monto_prestacion: d.monto_prestacion != null ? String(d.monto_prestacion) : '',
       id_tipo_traslado: d.id_tipo_traslado != null ? String(d.id_tipo_traslado) : '',
       cant_acompanantes: d.cant_acompanantes != null ? String(d.cant_acompanantes) : '',
       monto_traslado: d.monto_traslado != null ? String(d.monto_traslado) : '',
       id_cobertura_alojamiento: d.id_cobertura_alojamiento != null ? String(d.id_cobertura_alojamiento) : '',
       id_tipo_alojamiento: d.id_tipo_alojamiento != null ? String(d.id_tipo_alojamiento) : '',
-      lugar_alojamiento: d.lugar_alojamiento || '',
+      id_lugar_alojamiento: d.id_lugar_alojamiento != null ? String(d.id_lugar_alojamiento) : '',
       cant_noches: d.cant_noches != null ? String(d.cant_noches) : '',
       monto_alojamiento: d.monto_alojamiento != null ? String(d.monto_alojamiento) : '',
       id_tipo_patologia: d.id_tipo_patologia != null ? String(d.id_tipo_patologia) : '',
@@ -463,14 +489,14 @@ export default function Derivaciones() {
       diagnostico_tratamiento: form.diagnostico_tratamiento || null,
       destino: form.destino || null,
       id_cobertura: form.id_cobertura ? parseInt(form.id_cobertura) : null,
-      centro_medico: form.centro_medico || null,
+      id_centro_medico: form.id_centro_medico ? parseInt(form.id_centro_medico) : null,
       monto_prestacion: form.monto_prestacion ? parseFloat(form.monto_prestacion) : null,
       id_tipo_traslado: form.id_tipo_traslado ? parseInt(form.id_tipo_traslado) : null,
       cant_acompanantes: form.cant_acompanantes ? parseInt(form.cant_acompanantes) : null,
       monto_traslado: form.monto_traslado ? parseFloat(form.monto_traslado) : null,
       id_cobertura_alojamiento: form.id_cobertura_alojamiento ? parseInt(form.id_cobertura_alojamiento) : null,
       id_tipo_alojamiento: form.id_tipo_alojamiento ? parseInt(form.id_tipo_alojamiento) : null,
-      lugar_alojamiento: form.lugar_alojamiento || null,
+      id_lugar_alojamiento: form.id_lugar_alojamiento ? parseInt(form.id_lugar_alojamiento) : null,
       cant_noches: form.cant_noches ? parseInt(form.cant_noches) : null,
       monto_alojamiento: form.monto_alojamiento ? parseFloat(form.monto_alojamiento) : null,
     };
@@ -719,19 +745,22 @@ export default function Derivaciones() {
                   </div>
 
                   <div className="dv-form-row">
-                    <div className="dv-form-field">
-                      <label className="dv-form-label">Centro médico</label>
-                      <input className="dv-form-input" value={form.centro_medico} onChange={(e) => updateForm('centro_medico', e.target.value)} />
-                    </div>
-                    <div className="dv-form-field">
-                      <label className="dv-form-label">Cobertura Prestación</label>
-                      <select className="dv-form-input" value={form.id_cobertura} onChange={(e) => updateForm('id_cobertura', e.target.value)}>
-                        <option value="">— Seleccionar —</option>
-                        {coberturas.map((c) => (
-                          <option key={c.id} value={c.id}>{c.nombre}</option>
-                        ))}
-                      </select>
-                    </div>
+                    <SelectConCarga
+                      label="Centro médico"
+                      value={form.id_centro_medico}
+                      opciones={centrosMedicos}
+                      onChange={(v) => updateForm('id_centro_medico', v)}
+                      onCrear={(n) => crearOpcion('centros-medicos', setCentrosMedicos, n)}
+                      disabled={soloLectura}
+                    />
+                    <SelectConCarga
+                      label="Cobertura Prestación"
+                      value={form.id_cobertura}
+                      opciones={coberturas}
+                      onChange={(v) => updateForm('id_cobertura', v)}
+                      onCrear={(n) => crearOpcion('coberturas', setCoberturas, n)}
+                      disabled={soloLectura}
+                    />
                   </div>
 
                   <div className="dv-form-field dv-form-field--narrow">
@@ -749,15 +778,14 @@ export default function Derivaciones() {
                       <label className="dv-form-label">Acompañantes</label>
                       <input className="dv-form-input" type="number" value={form.cant_acompanantes} onChange={(e) => updateForm('cant_acompanantes', e.target.value)} />
                     </div>
-                    <div className="dv-form-field">
-                      <label className="dv-form-label">Tipo</label>
-                      <select className="dv-form-input" value={form.id_tipo_traslado} onChange={(e) => updateForm('id_tipo_traslado', e.target.value)}>
-                        <option value="">— Seleccionar —</option>
-                        {tiposTraslado.map((t) => (
-                          <option key={t.id} value={t.id}>{t.nombre}</option>
-                        ))}
-                      </select>
-                    </div>
+                    <SelectConCarga
+                      label="Tipo"
+                      value={form.id_tipo_traslado}
+                      opciones={tiposTraslado}
+                      onChange={(v) => updateForm('id_tipo_traslado', v)}
+                      onCrear={(n) => crearOpcion('tipos-traslado', setTiposTraslado, n)}
+                      disabled={soloLectura}
+                    />
                     <div className="dv-form-field">
                       <label className="dv-form-label">Monto</label>
                       <input className="dv-form-input" type="number" step="0.01" value={form.monto_traslado} onChange={(e) => updateForm('monto_traslado', e.target.value)} placeholder="0.00" />
@@ -770,28 +798,30 @@ export default function Derivaciones() {
                   <p className="dv-form-section">Alojamiento</p>
 
                   <div className="dv-form-row-3">
-                    <div className="dv-form-field">
-                      <label className="dv-form-label">Cobertura</label>
-                      <select className="dv-form-input" value={form.id_cobertura_alojamiento} onChange={(e) => updateForm('id_cobertura_alojamiento', e.target.value)}>
-                        <option value="">— Seleccionar —</option>
-                        {coberturas.map((c) => (
-                          <option key={c.id} value={c.id}>{c.nombre}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="dv-form-field">
-                      <label className="dv-form-label">Tipo</label>
-                      <select className="dv-form-input" value={form.id_tipo_alojamiento} onChange={(e) => updateForm('id_tipo_alojamiento', e.target.value)}>
-                        <option value="">— Seleccionar —</option>
-                        {tiposAlojamiento.map((t) => (
-                          <option key={t.id} value={t.id}>{t.nombre}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="dv-form-field">
-                      <label className="dv-form-label">Lugar</label>
-                      <input className="dv-form-input" value={form.lugar_alojamiento} onChange={(e) => updateForm('lugar_alojamiento', e.target.value)} />
-                    </div>
+                    <SelectConCarga
+                      label="Cobertura"
+                      value={form.id_cobertura_alojamiento}
+                      opciones={coberturas}
+                      onChange={(v) => updateForm('id_cobertura_alojamiento', v)}
+                      onCrear={(n) => crearOpcion('coberturas', setCoberturas, n)}
+                      disabled={soloLectura}
+                    />
+                    <SelectConCarga
+                      label="Tipo"
+                      value={form.id_tipo_alojamiento}
+                      opciones={tiposAlojamiento}
+                      onChange={(v) => updateForm('id_tipo_alojamiento', v)}
+                      onCrear={(n) => crearOpcion('tipos-alojamiento', setTiposAlojamiento, n)}
+                      disabled={soloLectura}
+                    />
+                    <SelectConCarga
+                      label="Lugar"
+                      value={form.id_lugar_alojamiento}
+                      opciones={lugaresAlojamiento}
+                      onChange={(v) => updateForm('id_lugar_alojamiento', v)}
+                      onCrear={(n) => crearOpcion('lugares-alojamiento', setLugaresAlojamiento, n)}
+                      disabled={soloLectura}
+                    />
                   </div>
 
                   <div className="dv-form-row">
