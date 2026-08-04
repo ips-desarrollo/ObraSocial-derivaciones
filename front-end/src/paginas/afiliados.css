@@ -441,7 +441,6 @@
 }
 
 .af-id-card--credencial {
-  flex: 1.5 1 0;
   border-color: var(--ips);
   background:
     linear-gradient(135deg, var(--ips-subtle), rgba(90, 116, 186, 0.16));
@@ -457,20 +456,17 @@
 }
 
 .af-id-card-value {
-  font-size: 1.05rem;
+  font-size: 0.85rem;
   font-weight: 700;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;
   color: var(--text);
   font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
 }
 
 .af-id-card-value--credencial {
-  font-size: 1.1rem;
-  letter-spacing: 0.06em;
   color: var(--ips);
 }
 
