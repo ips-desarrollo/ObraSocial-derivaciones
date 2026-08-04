@@ -459,6 +459,131 @@
   flex-shrink: 0;
 }
 
+/* ─── Combobox (dropdown custom con teclado) ─────────────────── */
+.dv-cbx {
+  position: relative;
+  width: 100%;
+}
+
+.dv-cbx-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.42rem 0.7rem;
+  font-size: 0.84rem;
+  font-family: inherit;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  outline: none;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.dv-cbx-trigger:hover:not(:disabled) {
+  border-color: var(--ips);
+}
+
+.dv-cbx-trigger:focus-visible,
+.dv-cbx-trigger--open {
+  border-color: var(--ips);
+  box-shadow: 0 0 0 3px var(--ips-subtle);
+}
+
+.dv-cbx-trigger:disabled {
+  background: var(--surface-3);
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.dv-cbx-valor {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dv-cbx-placeholder {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dv-cbx-caret {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  transition: transform 0.15s;
+}
+
+.dv-cbx-trigger--open .dv-cbx-caret {
+  transform: rotate(180deg);
+}
+
+.dv-cbx-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  margin: 0;
+  padding: 0.3rem;
+  list-style: none;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-lg);
+}
+
+.dv-cbx-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.42rem 0.6rem;
+  font-size: 0.84rem;
+  color: var(--text);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+
+.dv-cbx-option--activa {
+  background: var(--ips-subtle);
+}
+
+.dv-cbx-option--sel {
+  font-weight: 600;
+  color: var(--ips);
+}
+
+.dv-cbx-check {
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  color: var(--ips);
+}
+
+.dv-cbx-option--nuevo {
+  margin-top: 0.2rem;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 var(--r-sm) var(--r-sm);
+  color: var(--ips);
+  font-weight: 600;
+}
+
+.dv-cbx-vacio {
+  padding: 0.5rem 0.6rem;
+  font-size: 0.82rem;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
 .dv-form-actions {
   display: flex;
   gap: 0.75rem;
