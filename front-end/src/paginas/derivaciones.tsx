@@ -651,15 +651,9 @@ export default function Derivaciones() {
                 <div className="dv-form-group">
                   <p className="dv-form-section">Patología cargada</p>
 
-                  <div className="dv-form-row">
-                    <div className="dv-form-field">
-                      <label className="dv-form-label">Patología</label>
-                      <input className="dv-form-input dv-form-input--ro" value={form.tipo_patologia} readOnly />
-                    </div>
-                    <div className="dv-form-field">
-                      <label className="dv-form-label">Fecha de turno</label>
-                      <input className="dv-form-input dv-form-input--ro" type="date" value={form.fecha_turno} readOnly />
-                    </div>
+                  <div className="dv-form-field">
+                    <label className="dv-form-label">Patología</label>
+                    <input className="dv-form-input dv-form-input--ro" value={form.tipo_patologia} readOnly />
                   </div>
 
                   <div className="dv-form-field">
@@ -703,6 +697,16 @@ export default function Derivaciones() {
                         ))}
                       </select>
                     </div>
+                  </div>
+
+                  <div className="dv-form-field">
+                    <label className="dv-form-label">Fecha de turno</label>
+                    <input
+                      className="dv-form-input"
+                      type="date"
+                      value={form.fecha_turno}
+                      onChange={(e) => updateForm('fecha_turno', e.target.value)}
+                    />
                   </div>
 
                   <div className="dv-form-field">
