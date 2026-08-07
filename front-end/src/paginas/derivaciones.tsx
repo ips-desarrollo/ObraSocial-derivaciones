@@ -517,6 +517,11 @@ export default function Derivaciones() {
       return;
     }
 
+    if (!form.fecha) {
+      setFormError('Debe indicar la fecha de la derivación');
+      return;
+    }
+
     setSaving(true);
     setFormError('');
 

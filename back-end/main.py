@@ -1175,13 +1175,15 @@ def _ensure_derivacion_tables():
                 monto_alojamiento NUMERIC(12, 2)
             );
         """)
+        pg.commit()
         for col, defn in [
             ("id_tipo_patologia", "INTEGER REFERENCES tipo_patologia(id)"),
             ("id_tratamiento", "INTEGER REFERENCES tratamiento(id)"),
             ("diagnostico_tratamiento", "TEXT"),
         ]:
             try:
-                cur.execute(f"ALTER TABLE derivacion ADD COLUMN {col} {defn}")
+                cur.execute(f"ALTER TABLE derivacion ADD COLUMN IF NOT EXISTS {col} {defn}")
+                pg.commit()
             except Exception:
                 pg.rollback()
         for tabla, col, defn in [
@@ -1189,7 +1191,8 @@ def _ensure_derivacion_tables():
             ("derivacion_alojamiento", "id_lugar_alojamiento", "INTEGER REFERENCES lugar_alojamiento(id)"),
         ]:
             try:
-                cur.execute(f"ALTER TABLE {tabla} ADD COLUMN {col} {defn}")
+                cur.execute(f"ALTER TABLE {tabla} ADD COLUMN IF NOT EXISTS {col} {defn}")
+                pg.commit()
             except Exception:
                 pg.rollback()
         # Backfill idempotente: pasar el texto libre existente a los catálogos
