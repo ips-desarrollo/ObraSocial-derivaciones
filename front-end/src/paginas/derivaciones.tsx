@@ -967,60 +967,20 @@ export default function Derivaciones() {
               <table className="dv-table">
                 <thead>
                   <tr>
-                    <th>N° Disp.</th>
-                    <th>Fecha</th>
                     <th>Afiliado</th>
                     <th>DNI</th>
-                    <th>Credencial</th>
-                    <th>Edad</th>
-                    <th>Sexo</th>
-                    <th>Destino</th>
-                    <th>Cob. Prestación</th>
-                    <th>Centro Médico</th>
-                    <th>Monto Prest.</th>
-                    <th>Expediente</th>
-                    <th>Acomp.</th>
-                    <th>Tipo Traslado</th>
-                    <th>Monto Trasl.</th>
-                    <th>Cob. Aloj.</th>
-                    <th>Tipo Aloj.</th>
-                    <th>Lugar Aloj.</th>
-                    <th>Noches</th>
-                    <th>Monto Aloj.</th>
-                    <th>Tipo Patología</th>
-                    <th>Diagnóstico</th>
-                    <th>Tratamiento</th>
-                    <th>Fecha Turno</th>
+                    <th>N° Disp.</th>
+                    <th>Fecha</th>
                     {!soloLectura && <th>Acciones</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {derivaciones.map((d) => (
                     <tr key={d.id}>
-                      <td>{d.nro_disposicion || '-'}</td>
-                      <td>{d.fecha || '-'}</td>
                       <td className="dv-name-cell">{d.afiliado_nombre || '-'}</td>
                       <td>{d.afiliado_documento}</td>
-                      <td>{d.afiliado_credencial || '-'}</td>
-                      <td>{d.afiliado_edad ?? '-'}</td>
-                      <td>{d.afiliado_sexo || '-'}</td>
-                      <td>{d.destino || '-'}</td>
-                      <td>{d.cobertura_prestacion || '-'}</td>
-                      <td>{d.centro_medico || '-'}</td>
-                      <td className="dv-monto-cell">{formatMonto(d.monto_prestacion)}</td>
-                      <td>{d.expediente || '-'}</td>
-                      <td>{d.cant_acompanantes ?? '-'}</td>
-                      <td>{d.tipo_traslado || '-'}</td>
-                      <td className="dv-monto-cell">{formatMonto(d.monto_traslado)}</td>
-                      <td>{d.cobertura_alojamiento || '-'}</td>
-                      <td>{d.tipo_alojamiento || '-'}</td>
-                      <td>{d.lugar_alojamiento || '-'}</td>
-                      <td>{d.cant_noches ?? '-'}</td>
-                      <td className="dv-monto-cell">{formatMonto(d.monto_alojamiento)}</td>
-                      <td>{d.tipo_patologia || '-'}</td>
-                      <td>{d.diagnostico || '-'}</td>
-                      <td>{d.tratamiento || '-'}</td>
-                      <td>{d.fecha_turno || '-'}</td>
+                      <td>{d.nro_disposicion || '-'}</td>
+                      <td>{d.fecha || '-'}</td>
                       {!soloLectura && (
                       <td>
                         <div className="dv-actions">

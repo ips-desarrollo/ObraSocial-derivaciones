@@ -308,6 +308,12 @@
   gap: 0.4rem;
 }
 
+/* El nombre del afiliado se lleva el espacio libre; el resto ajusta al contenido */
+.dv-table .dv-name-cell {
+  width: 100%;
+  white-space: normal;
+}
+
 /* ─── Empty state ────────────────────────────────────────────── */
 .dv-empty {
   padding: 3rem 1rem;
@@ -789,5 +795,19 @@
 
   .dv-modal {
     max-width: 100%;
+  }
+}
+
+/* En pantallas chicas la tabla se ajusta sin scroll horizontal */
+@media (max-width: 640px) {
+  .dv-table thead tr th,
+  .dv-table tbody tr td {
+    padding: 0.5rem 0.4rem;
+    font-size: 0.74rem;
+  }
+
+  .dv-actions {
+    flex-direction: column;
+    gap: 0.3rem;
   }
 }
