@@ -256,8 +256,9 @@
 }
 
 .dv-table {
-  width: auto;
-  max-width: 100%;
+  width: 100%;
+  max-width: 880px;
+  margin: 0 auto;
   border-collapse: collapse;
 }
 
@@ -309,10 +310,20 @@
   gap: 0.4rem;
 }
 
-/* El nombre del afiliado puede envolver si es largo, sin estirar la tabla */
+/* El nombre del afiliado se lleva el espacio libre dentro de la tabla */
 .dv-table .dv-name-cell {
+  width: 100%;
   white-space: normal;
-  max-width: 22rem;
+}
+
+/* Última columna (Acciones) alineada a la derecha */
+.dv-table thead tr th:last-child,
+.dv-table tbody tr td:last-child {
+  text-align: right;
+}
+
+.dv-table .dv-actions {
+  justify-content: flex-end;
 }
 
 /* ─── Empty state ────────────────────────────────────────────── */
