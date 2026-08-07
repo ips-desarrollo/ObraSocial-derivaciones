@@ -834,7 +834,7 @@ export default function Derivaciones() {
                 </div>
 
                 {/* Alojamiento */}
-                <div className="dv-form-group">
+                <div className="dv-form-group dv-form-group--grow">
                   <p className="dv-form-section">Alojamiento</p>
 
                   <div className="dv-form-row-3">
@@ -875,6 +875,18 @@ export default function Derivaciones() {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* ── Monto total (ancho completo) ── */}
+              <div className="dv-form-total dv-form-footer">
+                <span className="dv-form-total-label">Monto Total</span>
+                <span className="dv-form-total-value">
+                  {formatMonto(
+                    (parseMontoInput(form.monto_prestacion) ?? 0) +
+                      (parseMontoInput(form.monto_traslado) ?? 0) +
+                      (parseMontoInput(form.monto_alojamiento) ?? 0)
+                  )}
+                </span>
               </div>
 
               {/* ── Footer (ancho completo) ── */}

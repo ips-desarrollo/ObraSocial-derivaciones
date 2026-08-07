@@ -629,6 +629,31 @@
   padding-top: 0.75rem;
 }
 
+.dv-form-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+}
+
+.dv-form-total-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.dv-form-total-value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--ips);
+}
+
 /* ─── Afiliado search ────────────────────────────────────────── */
 .dv-search-wrap {
   position: relative;
