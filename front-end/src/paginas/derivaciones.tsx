@@ -967,9 +967,9 @@ export default function Derivaciones() {
               <table className="dv-table">
                 <thead>
                   <tr>
-                    <th>Afiliado</th>
-                    <th>DNI</th>
                     <th>N° Disp.</th>
+                    <th>DNI</th>
+                    <th>Afiliado</th>
                     <th>Fecha</th>
                     {!soloLectura && <th>Acciones</th>}
                   </tr>
@@ -977,9 +977,9 @@ export default function Derivaciones() {
                 <tbody>
                   {derivaciones.map((d) => (
                     <tr key={d.id}>
-                      <td className="dv-name-cell">{d.afiliado_nombre || '-'}</td>
-                      <td>{d.afiliado_documento}</td>
                       <td>{d.nro_disposicion || '-'}</td>
+                      <td>{d.afiliado_documento}</td>
+                      <td className="dv-name-cell">{d.afiliado_nombre || '-'}</td>
                       <td>{d.fecha || '-'}</td>
                       {!soloLectura && (
                       <td>

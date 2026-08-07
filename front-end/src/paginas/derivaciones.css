@@ -256,7 +256,8 @@
 }
 
 .dv-table {
-  width: 100%;
+  width: auto;
+  max-width: 100%;
   border-collapse: collapse;
 }
 
@@ -308,10 +309,10 @@
   gap: 0.4rem;
 }
 
-/* El nombre del afiliado se lleva el espacio libre; el resto ajusta al contenido */
+/* El nombre del afiliado puede envolver si es largo, sin estirar la tabla */
 .dv-table .dv-name-cell {
-  width: 100%;
   white-space: normal;
+  max-width: 22rem;
 }
 
 /* ─── Empty state ────────────────────────────────────────────── */
