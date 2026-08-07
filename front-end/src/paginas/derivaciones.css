@@ -337,6 +337,20 @@
   padding: 0.85rem 1rem;
 }
 
+/* Bloque que se estira para igualar la altura de la otra columna */
+.dv-form-group--grow {
+  flex: 1;
+}
+
+.dv-form-group--grow .dv-form-field:last-child {
+  flex: 1;
+}
+
+.dv-form-group--grow .dv-form-field:last-child .dv-form-textarea {
+  flex: 1;
+  min-height: 48px;
+}
+
 .dv-form-col {
   display: flex;
   flex-direction: column;
@@ -373,6 +387,30 @@
   grid-template-columns: 1fr 1fr;
   gap: 0.6rem;
 }
+
+.dv-form-row-afiliado {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 0.5fr 0.9fr;
+  gap: 0.6rem;
+}
+
+.dv-form-derivacion {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 0.6rem;
+  grid-template-areas:
+    "disp disp fecha fecha monto monto"
+    "exp exp exp dest dest dest"
+    "centro centro centro cob cob cob";
+}
+
+.dv-df-disp   { grid-area: disp; }
+.dv-df-fecha  { grid-area: fecha; }
+.dv-df-monto  { grid-area: monto; }
+.dv-df-exp    { grid-area: exp; }
+.dv-df-dest   { grid-area: dest; }
+.dv-df-centro { grid-area: centro; }
+.dv-df-cob    { grid-area: cob; }
 
 .dv-form-row-3 {
   display: grid;
@@ -704,6 +742,20 @@
   .dv-form-row,
   .dv-form-row-3 {
     grid-template-columns: 1fr;
+  }
+
+  .dv-form-row-afiliado {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .dv-form-derivacion {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "disp fecha"
+      "exp monto"
+      "dest dest"
+      "centro centro"
+      "cob cob";
   }
 
   .dv-form-group {

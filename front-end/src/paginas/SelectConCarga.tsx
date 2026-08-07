@@ -12,11 +12,12 @@ interface Props {
   onChange: (value: string) => void;
   onCrear: (nombre: string) => Promise<OpcionGuia | null>;
   disabled?: boolean;
+  className?: string;
 }
 
 const NUEVO_IDX = -2; // índice virtual de la opción "+ Agregar nuevo…"
 
-export default function SelectConCarga({ label, value, opciones, onChange, onCrear, disabled }: Props) {
+export default function SelectConCarga({ label, value, opciones, onChange, onCrear, disabled, className }: Props) {
   const [abierto, setAbierto] = useState(false);
   const [activo, setActivo] = useState<number>(-1); // índice resaltado; NUEVO_IDX = agregar nuevo
   const [creando, setCreando] = useState(false);
@@ -160,7 +161,7 @@ export default function SelectConCarga({ label, value, opciones, onChange, onCre
   }
 
   return (
-    <div className="dv-form-field">
+    <div className={`dv-form-field${className ? ` ${className}` : ''}`}>
       <label className="dv-form-label">{label}</label>
 
       {creando ? (

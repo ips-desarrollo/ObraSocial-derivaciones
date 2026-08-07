@@ -27,6 +27,7 @@ interface Derivacion {
   tratamiento_nombre: string | null;
   diagnostico_tratamiento: string | null;
   destino: string | null;
+  id_destino: number | null;
   id_cobertura: number | null;
   cobertura_prestacion: string | null;
   centro_medico: string | null;
@@ -87,6 +88,7 @@ interface FormData {
   id_tratamiento: string;
   diagnostico_tratamiento: string;
   destino: string;
+  id_destino: string;
   id_cobertura: string;
   id_centro_medico: string;
   monto_prestacion: string;
@@ -117,6 +119,7 @@ const emptyForm: FormData = {
   id_tratamiento: '',
   diagnostico_tratamiento: '',
   destino: '',
+  id_destino: '',
   id_cobertura: '',
   id_centro_medico: '',
   monto_prestacion: '',
@@ -144,6 +147,35 @@ function formatMes(mes: string): string {
 function formatMonto(v: number | null): string {
   if (v == null) return '-';
   return `$${v.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`;
+}
+
+// Formatea lo que el usuario escribe a formato AR (1.000,00) mientras tipea
+function formatMontoInput(raw: string): string {
+  if (raw == null) return '';
+  let s = raw.replace(/[^\d,]/g, '');
+  // conservar solo la primera coma decimal
+  const iComa = s.indexOf(',');
+  if (iComa !== -1) {
+    s = s.slice(0, iComa + 1) + s.slice(iComa + 1).replace(/,/g, '');
+  }
+  let [ent, dec] = s.split(',');
+  ent = ent.replace(/^0+(?=\d)/, '');                 // sacar ceros a la izquierda
+  ent = ent.replace(/\B(?=(\d{3})+(?!\d))/g, '.');    // punto de miles
+  return dec !== undefined ? `${ent},${dec.slice(0, 2)}` : ent;
+}
+
+// Convierte un número a formato AR para mostrar en el input al editar
+function numeroAMontoInput(v: number | null): string {
+  if (v == null) return '';
+  return v.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Convierte el texto del input (1.000,00) a número para guardar
+function parseMontoInput(s: string): number | null {
+  if (!s) return null;
+  const norm = s.replace(/\./g, '').replace(',', '.');
+  const n = parseFloat(norm);
+  return isNaN(n) ? null : n;
 }
 
 function calcularEdad(nacimiento: string | null): number | null {
@@ -193,18 +225,20 @@ export default function Derivaciones() {
   const [tiposPatologia, setTiposPatologia] = useState<OpcionGuia[]>([]);
   const [tratamientos, setTratamientos] = useState<OpcionGuia[]>([]);
   const [centrosMedicos, setCentrosMedicos] = useState<OpcionGuia[]>([]);
+  const [destinos, setDestinos] = useState<OpcionGuia[]>([]);
   const [lugaresAlojamiento, setLugaresAlojamiento] = useState<OpcionGuia[]>([]);
 
   useEffect(() => {
     async function cargarGuias() {
       try {
-        const [resCob, resTrasl, resAloj, resTipoPat, resTrat, resCentro, resLugar] = await Promise.all([
+        const [resCob, resTrasl, resAloj, resTipoPat, resTrat, resCentro, resDestino, resLugar] = await Promise.all([
           fetchAuth(`${API}/coberturas`),
           fetchAuth(`${API}/tipos-traslado`),
           fetchAuth(`${API}/tipos-alojamiento`),
           fetchAuth(`${API}/tipos-patologia`),
           fetchAuth(`${API}/tratamientos`),
           fetchAuth(`${API}/centros-medicos`),
+          fetchAuth(`${API}/destinos`),
           fetchAuth(`${API}/lugares-alojamiento`),
         ]);
         if (resCob.ok) setCoberturas(await resCob.json());
@@ -213,6 +247,7 @@ export default function Derivaciones() {
         if (resTipoPat.ok) setTiposPatologia(await resTipoPat.json());
         if (resTrat.ok) setTratamientos(await resTrat.json());
         if (resCentro.ok) setCentrosMedicos(await resCentro.json());
+        if (resDestino.ok) setDestinos(await resDestino.json());
         if (resLugar.ok) setLugaresAlojamiento(await resLugar.json());
       } catch {}
     }
@@ -413,17 +448,18 @@ export default function Derivaciones() {
       tratamiento: d.tratamiento || '',
       fecha_turno: d.fecha_turno || '',
       destino: d.destino || '',
+      id_destino: d.id_destino != null ? String(d.id_destino) : '',
       id_cobertura: d.id_cobertura != null ? String(d.id_cobertura) : '',
       id_centro_medico: d.id_centro_medico != null ? String(d.id_centro_medico) : '',
-      monto_prestacion: d.monto_prestacion != null ? String(d.monto_prestacion) : '',
+      monto_prestacion: numeroAMontoInput(d.monto_prestacion),
       id_tipo_traslado: d.id_tipo_traslado != null ? String(d.id_tipo_traslado) : '',
       cant_acompanantes: d.cant_acompanantes != null ? String(d.cant_acompanantes) : '',
-      monto_traslado: d.monto_traslado != null ? String(d.monto_traslado) : '',
+      monto_traslado: numeroAMontoInput(d.monto_traslado),
       id_cobertura_alojamiento: d.id_cobertura_alojamiento != null ? String(d.id_cobertura_alojamiento) : '',
       id_tipo_alojamiento: d.id_tipo_alojamiento != null ? String(d.id_tipo_alojamiento) : '',
       id_lugar_alojamiento: d.id_lugar_alojamiento != null ? String(d.id_lugar_alojamiento) : '',
       cant_noches: d.cant_noches != null ? String(d.cant_noches) : '',
-      monto_alojamiento: d.monto_alojamiento != null ? String(d.monto_alojamiento) : '',
+      monto_alojamiento: numeroAMontoInput(d.monto_alojamiento),
       id_tipo_patologia: d.id_tipo_patologia != null ? String(d.id_tipo_patologia) : '',
       id_tratamiento: d.id_tratamiento != null ? String(d.id_tratamiento) : '',
       diagnostico_tratamiento: d.diagnostico_tratamiento || '',
@@ -488,17 +524,18 @@ export default function Derivaciones() {
       id_tratamiento: form.id_tratamiento ? parseInt(form.id_tratamiento) : null,
       diagnostico_tratamiento: form.diagnostico_tratamiento || null,
       destino: form.destino || null,
+      id_destino: form.id_destino ? parseInt(form.id_destino) : null,
       id_cobertura: form.id_cobertura ? parseInt(form.id_cobertura) : null,
       id_centro_medico: form.id_centro_medico ? parseInt(form.id_centro_medico) : null,
-      monto_prestacion: form.monto_prestacion ? parseFloat(form.monto_prestacion) : null,
+      monto_prestacion: parseMontoInput(form.monto_prestacion),
       id_tipo_traslado: form.id_tipo_traslado ? parseInt(form.id_tipo_traslado) : null,
       cant_acompanantes: form.cant_acompanantes ? parseInt(form.cant_acompanantes) : null,
-      monto_traslado: form.monto_traslado ? parseFloat(form.monto_traslado) : null,
+      monto_traslado: parseMontoInput(form.monto_traslado),
       id_cobertura_alojamiento: form.id_cobertura_alojamiento ? parseInt(form.id_cobertura_alojamiento) : null,
       id_tipo_alojamiento: form.id_tipo_alojamiento ? parseInt(form.id_tipo_alojamiento) : null,
       id_lugar_alojamiento: form.id_lugar_alojamiento ? parseInt(form.id_lugar_alojamiento) : null,
       cant_noches: form.cant_noches ? parseInt(form.cant_noches) : null,
-      monto_alojamiento: form.monto_alojamiento ? parseFloat(form.monto_alojamiento) : null,
+      monto_alojamiento: parseMontoInput(form.monto_alojamiento),
     };
 
     try {
@@ -626,7 +663,7 @@ export default function Derivaciones() {
                 <div className="dv-form-group">
                   <p className="dv-form-section">Datos del Afiliado</p>
 
-                  <div className="dv-form-row-3">
+                  <div className="dv-form-row-afiliado">
                     <div className="dv-form-field">
                       <label className="dv-form-label">DNI</label>
                       <input className="dv-form-input dv-form-input--ro" value={form.afiliado_documento ?? ''} readOnly />
@@ -635,15 +672,14 @@ export default function Derivaciones() {
                       <label className="dv-form-label">Credencial</label>
                       <input className="dv-form-input dv-form-input--ro" value={form.afiliado_credencial} readOnly />
                     </div>
-                    <div className="dv-form-field dv-form-field--narrow">
+                    <div className="dv-form-field">
                       <label className="dv-form-label">Edad</label>
                       <input className="dv-form-input dv-form-input--ro" value={form.afiliado_edad ?? ''} readOnly />
                     </div>
-                  </div>
-
-                  <div className="dv-form-field dv-form-field--narrow">
-                    <label className="dv-form-label">Sexo</label>
-                    <input className="dv-form-input dv-form-input--ro" value={form.afiliado_sexo} readOnly />
+                    <div className="dv-form-field">
+                      <label className="dv-form-label">Sexo</label>
+                      <input className="dv-form-input dv-form-input--ro" value={form.afiliado_sexo} readOnly />
+                    </div>
                   </div>
                 </div>
 
@@ -667,7 +703,7 @@ export default function Derivaciones() {
                 </div>
 
                 {/* Tratamiento */}
-                <div className="dv-form-group">
+                <div className="dv-form-group dv-form-group--grow">
                   <p className="dv-form-section">Tratamiento</p>
 
                   <div className="dv-form-row">
@@ -726,30 +762,34 @@ export default function Derivaciones() {
                 <div className="dv-form-group">
                   <p className="dv-form-section">Datos de la Derivación</p>
 
-                  <div className="dv-form-row">
-                    <div className="dv-form-field">
+                  <div className="dv-form-derivacion">
+                    <div className="dv-form-field dv-df-disp">
                       <label className="dv-form-label">N° Disposición</label>
                       <input className="dv-form-input" value={form.nro_disposicion} onChange={(e) => updateForm('nro_disposicion', e.target.value)} />
                     </div>
-                    <div className="dv-form-field">
+                    <div className="dv-form-field dv-df-fecha">
                       <label className="dv-form-label">Fecha</label>
                       <input className="dv-form-input" type="date" value={form.fecha} onChange={(e) => updateForm('fecha', e.target.value)} />
                     </div>
-                  </div>
-
-                  <div className="dv-form-row">
-                    <div className="dv-form-field">
+                    <div className="dv-form-field dv-df-monto">
+                      <label className="dv-form-label">Monto Prestación</label>
+                      <input className="dv-form-input" type="text" inputMode="decimal" value={form.monto_prestacion} onChange={(e) => updateForm('monto_prestacion', formatMontoInput(e.target.value))} placeholder="0,00" />
+                    </div>
+                    <div className="dv-form-field dv-df-exp">
                       <label className="dv-form-label">Expediente</label>
                       <input className="dv-form-input" value={form.expediente} onChange={(e) => updateForm('expediente', e.target.value)} />
                     </div>
-                    <div className="dv-form-field">
-                      <label className="dv-form-label">Destino</label>
-                      <input className="dv-form-input" value={form.destino} onChange={(e) => updateForm('destino', e.target.value)} />
-                    </div>
-                  </div>
-
-                  <div className="dv-form-row">
                     <SelectConCarga
+                      className="dv-df-dest"
+                      label="Destino"
+                      value={form.id_destino}
+                      opciones={destinos}
+                      onChange={(v) => updateForm('id_destino', v)}
+                      onCrear={(n) => crearOpcion('destinos', setDestinos, n)}
+                      disabled={soloLectura}
+                    />
+                    <SelectConCarga
+                      className="dv-df-centro"
                       label="Centro médico"
                       value={form.id_centro_medico}
                       opciones={centrosMedicos}
@@ -758,6 +798,7 @@ export default function Derivaciones() {
                       disabled={soloLectura}
                     />
                     <SelectConCarga
+                      className="dv-df-cob"
                       label="Cobertura Prestación"
                       value={form.id_cobertura}
                       opciones={coberturas}
@@ -765,11 +806,6 @@ export default function Derivaciones() {
                       onCrear={(n) => crearOpcion('coberturas', setCoberturas, n)}
                       disabled={soloLectura}
                     />
-                  </div>
-
-                  <div className="dv-form-field dv-form-field--narrow">
-                    <label className="dv-form-label">Monto Prestación</label>
-                    <input className="dv-form-input" type="number" step="0.01" value={form.monto_prestacion} onChange={(e) => updateForm('monto_prestacion', e.target.value)} placeholder="0.00" />
                   </div>
                 </div>
 
@@ -792,7 +828,7 @@ export default function Derivaciones() {
                     />
                     <div className="dv-form-field">
                       <label className="dv-form-label">Monto</label>
-                      <input className="dv-form-input" type="number" step="0.01" value={form.monto_traslado} onChange={(e) => updateForm('monto_traslado', e.target.value)} placeholder="0.00" />
+                      <input className="dv-form-input" type="text" inputMode="decimal" value={form.monto_traslado} onChange={(e) => updateForm('monto_traslado', formatMontoInput(e.target.value))} placeholder="0,00" />
                     </div>
                   </div>
                 </div>
@@ -835,7 +871,7 @@ export default function Derivaciones() {
                     </div>
                     <div className="dv-form-field">
                       <label className="dv-form-label">Monto</label>
-                      <input className="dv-form-input" type="number" step="0.01" value={form.monto_alojamiento} onChange={(e) => updateForm('monto_alojamiento', e.target.value)} placeholder="0.00" />
+                      <input className="dv-form-input" type="text" inputMode="decimal" value={form.monto_alojamiento} onChange={(e) => updateForm('monto_alojamiento', formatMontoInput(e.target.value))} placeholder="0,00" />
                     </div>
                   </div>
                 </div>

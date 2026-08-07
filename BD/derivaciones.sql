@@ -34,6 +34,11 @@ CREATE TABLE IF NOT EXISTS tratamiento (
     tratamiento VARCHAR(200) NOT NULL UNIQUE
 );
 
+CREATE TABLE IF NOT EXISTS destino (
+    id SERIAL PRIMARY KEY,
+    nombre VARCHAR(200) NOT NULL UNIQUE
+);
+
 -- Tabla principal
 CREATE TABLE IF NOT EXISTS derivacion (
     id_derivacion SERIAL PRIMARY KEY,
@@ -62,6 +67,7 @@ CREATE TABLE IF NOT EXISTS derivacion_prestacion (
     id SERIAL PRIMARY KEY,
     id_derivacion INTEGER NOT NULL UNIQUE REFERENCES derivacion(id_derivacion) ON DELETE CASCADE,
     destino VARCHAR(200),
+    id_destino INTEGER REFERENCES destino(id),
     id_cobertura INTEGER REFERENCES cobertura(id),
     centro_medico VARCHAR(200),
     id_centro_medico INTEGER REFERENCES centro_medico(id),
