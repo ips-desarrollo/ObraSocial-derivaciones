@@ -78,6 +78,7 @@ interface FormData {
   afiliado_nombre: string;
   afiliado_credencial: string;
   afiliado_edad: number | null;
+  afiliado_nacimiento: string | null;
   afiliado_sexo: string;
   expediente: string;
   tipo_patologia: string;
@@ -109,6 +110,7 @@ const emptyForm: FormData = {
   afiliado_nombre: '',
   afiliado_credencial: '',
   afiliado_edad: null,
+  afiliado_nacimiento: null,
   afiliado_sexo: '',
   expediente: '',
   tipo_patologia: '',
@@ -178,13 +180,15 @@ function parseMontoInput(s: string): number | null {
   return isNaN(n) ? null : n;
 }
 
-function calcularEdad(nacimiento: string | null): number | null {
+// Edad a la fecha de la derivación (no a la fecha actual), para no romper el
+// historial. Si no hay fecha de referencia, cae a la fecha de hoy.
+function calcularEdad(nacimiento: string | null, referencia?: string | null): number | null {
   if (!nacimiento) return null;
   const nac = new Date(nacimiento);
-  const hoy = new Date();
-  let edad = hoy.getFullYear() - nac.getFullYear();
-  const m = hoy.getMonth() - nac.getMonth();
-  if (m < 0 || (m === 0 && hoy.getDate() < nac.getDate())) edad--;
+  const ref = referencia ? new Date(referencia) : new Date();
+  let edad = ref.getFullYear() - nac.getFullYear();
+  const m = ref.getMonth() - nac.getMonth();
+  if (m < 0 || (m === 0 && ref.getDate() < nac.getDate())) edad--;
   return edad;
 }
 
@@ -411,7 +415,8 @@ export default function Derivaciones() {
         afiliado_documento: data.documento,
         afiliado_nombre: data.nombre_completo || `${data.apellido || ''} ${data.nombre || ''}`.trim(),
         afiliado_credencial: data.credencial || '',
-        afiliado_edad: calcularEdad(data.nacimiento),
+        afiliado_nacimiento: data.nacimiento || null,
+        afiliado_edad: calcularEdad(data.nacimiento, f.fecha),
         afiliado_sexo: data.genero || '',
       }));
 
@@ -441,6 +446,7 @@ export default function Derivaciones() {
       afiliado_nombre: d.afiliado_nombre || '',
       afiliado_credencial: d.afiliado_credencial || '',
       afiliado_edad: d.afiliado_edad,
+      afiliado_nacimiento: null,
       afiliado_sexo: d.afiliado_sexo || '',
       expediente: d.expediente || '',
       tipo_patologia: d.tipo_patologia || '',
@@ -494,7 +500,15 @@ export default function Derivaciones() {
   }
 
   function updateForm(field: keyof FormData, value: string) {
-    setForm(f => ({ ...f, [field]: value }));
+    setForm(f => {
+      const next = { ...f, [field]: value };
+      // La edad se registra a la fecha de la derivación: si cambia la fecha,
+      // se recalcula con el nacimiento del afiliado ya cargado.
+      if (field === 'fecha' && f.afiliado_nacimiento) {
+        next.afiliado_edad = calcularEdad(f.afiliado_nacimiento, value);
+      }
+      return next;
+    });
   }
 
   async function guardar() {
