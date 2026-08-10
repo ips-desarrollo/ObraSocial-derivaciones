@@ -827,26 +827,26 @@ export default function Derivaciones() {
                       onEliminar={(o) => eliminarOpcion('tipos-patologia', setTiposPatologia, o)}
                       disabled={soloLectura}
                     />
-                    <SelectConCarga
-                      label="Tratamiento"
-                      value={form.id_tratamiento}
-                      opciones={tratamientos}
-                      onChange={(v) => updateForm('id_tratamiento', v)}
-                      onCrear={(n) => crearOpcion('tratamientos', setTratamientos, n)}
-                      onEliminar={(o) => eliminarOpcion('tratamientos', setTratamientos, o)}
-                      disabled={soloLectura}
-                    />
+                    <div className="dv-form-field">
+                      <label className="dv-form-label">Fecha de turno</label>
+                      <input
+                        className="dv-form-input"
+                        type="date"
+                        value={form.fecha_turno}
+                        onChange={(e) => updateForm('fecha_turno', e.target.value)}
+                      />
+                    </div>
                   </div>
 
-                  <div className="dv-form-field">
-                    <label className="dv-form-label">Fecha de turno</label>
-                    <input
-                      className="dv-form-input"
-                      type="date"
-                      value={form.fecha_turno}
-                      onChange={(e) => updateForm('fecha_turno', e.target.value)}
-                    />
-                  </div>
+                  <SelectConCarga
+                    label="Tratamiento"
+                    value={form.id_tratamiento}
+                    opciones={tratamientos}
+                    onChange={(v) => updateForm('id_tratamiento', v)}
+                    onCrear={(n) => crearOpcion('tratamientos', setTratamientos, n)}
+                    onEliminar={(o) => eliminarOpcion('tratamientos', setTratamientos, o)}
+                    disabled={soloLectura}
+                  />
 
                   <SelectConCarga
                     label="Diagnóstico"
