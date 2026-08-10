@@ -642,6 +642,12 @@
   box-shadow: var(--shadow-lg);
 }
 
+/* Cuando no hay espacio abajo, el panel se despliega hacia arriba */
+.dv-cbx-panel--arriba {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+
 .dv-cbx-option {
   display: flex;
   align-items: center;

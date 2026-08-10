@@ -827,19 +827,15 @@ export default function Derivaciones() {
                       onEliminar={(o) => eliminarOpcion('tipos-patologia', setTiposPatologia, o)}
                       disabled={soloLectura}
                     />
-                    <div className="dv-form-field">
-                      <label className="dv-form-label">Tratamiento</label>
-                      <select
-                        className="dv-form-input"
-                        value={form.id_tratamiento}
-                        onChange={(e) => updateForm('id_tratamiento', e.target.value)}
-                      >
-                        <option value="">— Seleccionar —</option>
-                        {tratamientos.map((t) => (
-                          <option key={t.id} value={String(t.id)}>{t.nombre}</option>
-                        ))}
-                      </select>
-                    </div>
+                    <SelectConCarga
+                      label="Tratamiento"
+                      value={form.id_tratamiento}
+                      opciones={tratamientos}
+                      onChange={(v) => updateForm('id_tratamiento', v)}
+                      onCrear={(n) => crearOpcion('tratamientos', setTratamientos, n)}
+                      onEliminar={(o) => eliminarOpcion('tratamientos', setTratamientos, o)}
+                      disabled={soloLectura}
+                    />
                   </div>
 
                   <div className="dv-form-field">

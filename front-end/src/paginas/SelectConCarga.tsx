@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
 
 export interface OpcionGuia {
   id: number;
@@ -28,9 +28,11 @@ export default function SelectConCarga({ label, value, opciones, onChange, onCre
   const [confirmando, setConfirmando] = useState<OpcionGuia | null>(null); // opción a borrar
   const [borrando, setBorrando] = useState(false);
   const [errorBorrar, setErrorBorrar] = useState('');
+  const [arriba, setArriba] = useState(false); // abrir el panel hacia arriba si no hay espacio abajo
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLUListElement>(null);
   const opcionRefs = useRef<(HTMLLIElement | null)[]>([]);
   const typeahead = useRef<{ txt: string; t: number }>({ txt: '', t: 0 });
 
@@ -60,6 +62,19 @@ export default function SelectConCarga({ label, value, opciones, onChange, onCre
     document.addEventListener('mousedown', onClickFuera);
     return () => document.removeEventListener('mousedown', onClickFuera);
   }, [abierto, cerrar]);
+
+  // Decidir si el panel abre hacia arriba (cuando no entra abajo) según el espacio disponible
+  useLayoutEffect(() => {
+    if (!abierto) return;
+    const trigger = triggerRef.current;
+    const panel = panelRef.current;
+    if (!trigger || !panel) return;
+    const rect = trigger.getBoundingClientRect();
+    const alturaPanel = panel.offsetHeight;
+    const espacioAbajo = window.innerHeight - rect.bottom;
+    const espacioArriba = rect.top;
+    setArriba(espacioAbajo < alturaPanel + 8 && espacioArriba > espacioAbajo);
+  }, [abierto, opciones]);
 
   // Mantener la opción activa a la vista
   useEffect(() => {
@@ -241,7 +256,7 @@ export default function SelectConCarga({ label, value, opciones, onChange, onCre
           </button>
 
           {abierto && (
-            <ul className="dv-cbx-panel" role="listbox" tabIndex={-1}>
+            <ul ref={panelRef} className={`dv-cbx-panel${arriba ? ' dv-cbx-panel--arriba' : ''}`} role="listbox" tabIndex={-1}>
               {opciones.length === 0 && (
                 <li className="dv-cbx-vacio">Sin opciones cargadas</li>
               )}
