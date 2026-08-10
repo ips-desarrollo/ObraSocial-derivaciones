@@ -1,42 +1,53 @@
 -- Tablas guía
+-- La columna "activo" permite el borrado lógico (soft delete): las opciones
+-- dadas de baja quedan con activo = FALSE y no se muestran en los menús, pero
+-- se conservan en la BD para no romper el historial de derivaciones viejas.
 CREATE TABLE IF NOT EXISTS cobertura (
     id SERIAL PRIMARY KEY,
-    nombre VARCHAR(100) NOT NULL UNIQUE
+    nombre VARCHAR(100) NOT NULL UNIQUE,
+    activo BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 CREATE TABLE IF NOT EXISTS tipo_traslado (
     id SERIAL PRIMARY KEY,
-    nombre VARCHAR(100) NOT NULL UNIQUE
+    nombre VARCHAR(100) NOT NULL UNIQUE,
+    activo BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 CREATE TABLE IF NOT EXISTS tipo_alojamiento (
     id SERIAL PRIMARY KEY,
-    nombre VARCHAR(100) NOT NULL UNIQUE
+    nombre VARCHAR(100) NOT NULL UNIQUE,
+    activo BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 CREATE TABLE IF NOT EXISTS centro_medico (
     id SERIAL PRIMARY KEY,
-    nombre VARCHAR(200) NOT NULL UNIQUE
+    nombre VARCHAR(200) NOT NULL UNIQUE,
+    activo BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 CREATE TABLE IF NOT EXISTS lugar_alojamiento (
     id SERIAL PRIMARY KEY,
-    nombre VARCHAR(200) NOT NULL UNIQUE
+    nombre VARCHAR(200) NOT NULL UNIQUE,
+    activo BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 CREATE TABLE IF NOT EXISTS tipo_patologia (
     id SERIAL PRIMARY KEY,
-    tipo_pat VARCHAR(100) NOT NULL UNIQUE
+    tipo_pat VARCHAR(100) NOT NULL UNIQUE,
+    activo BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 CREATE TABLE IF NOT EXISTS tratamiento (
     id SERIAL PRIMARY KEY,
-    tratamiento VARCHAR(200) NOT NULL UNIQUE
+    tratamiento VARCHAR(200) NOT NULL UNIQUE,
+    activo BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 CREATE TABLE IF NOT EXISTS destino (
     id SERIAL PRIMARY KEY,
-    nombre VARCHAR(200) NOT NULL UNIQUE
+    nombre VARCHAR(200) NOT NULL UNIQUE,
+    activo BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 -- Tabla principal

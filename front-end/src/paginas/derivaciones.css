@@ -268,7 +268,7 @@
   letter-spacing: 0.07em;
   color: var(--label);
   font-weight: 600;
-  padding: 0.65rem 0.6rem;
+  padding: 0.7rem 0.85rem;
   text-align: left;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
@@ -276,7 +276,11 @@
 }
 
 .dv-table tbody tr {
-  transition: background 0.1s;
+  transition: background 0.12s;
+}
+
+.dv-table tbody tr:nth-child(even) {
+  background: var(--surface-2);
 }
 
 .dv-table tbody tr:hover {
@@ -284,11 +288,12 @@
 }
 
 .dv-table tbody tr td {
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   color: var(--text-secondary);
-  padding: 0.5rem 0.6rem;
+  padding: 0.7rem 0.85rem;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
+  vertical-align: middle;
 }
 
 .dv-table tbody tr:last-child td {
@@ -298,6 +303,36 @@
 .dv-name-cell {
   font-weight: 600;
   color: var(--text) !important;
+}
+
+/* N° de disposición como badge */
+.dv-disp-badge {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
+  color: var(--ips);
+  background: var(--ips-subtle);
+  border: 1px solid var(--ips-subtle);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* DNI en monoespaciada para alinear los dígitos */
+.dv-dni-cell {
+  font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
+  font-size: 0.8rem;
+  color: var(--text) !important;
+  letter-spacing: 0.01em;
+}
+
+.dv-fecha-cell {
+  font-variant-numeric: tabular-nums;
+}
+
+.dv-cell-empty {
+  color: var(--text-muted);
 }
 
 .dv-monto-cell {
@@ -619,10 +654,47 @@
   color: var(--ips);
 }
 
+.dv-cbx-option-txt {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .dv-cbx-check {
   flex-shrink: 0;
   font-size: 0.78rem;
   color: var(--ips);
+}
+
+/* Botón para dar de baja una opción del menú desplegable */
+.dv-cbx-borrar {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.1s, background 0.1s, color 0.1s;
+}
+
+.dv-cbx-option:hover .dv-cbx-borrar,
+.dv-cbx-option--activa .dv-cbx-borrar {
+  opacity: 1;
+}
+
+.dv-cbx-borrar:hover {
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 
 .dv-cbx-option--nuevo {
@@ -739,6 +811,10 @@
   padding: 1.75rem;
   max-width: 460px;
   width: 100%;
+}
+
+.dv-modal--sm {
+  max-width: 380px;
 }
 
 .dv-modal-title {

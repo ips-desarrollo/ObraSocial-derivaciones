@@ -146,6 +146,13 @@ function formatMes(mes: string): string {
   return `${meses[parseInt(m) - 1]} ${y}`;
 }
 
+function formatFecha(f: string | null): string {
+  if (!f) return '-';
+  const [y, m, d] = f.slice(0, 10).split('-');
+  if (!y || !m || !d) return f;
+  return `${d}/${m}/${y}`;
+}
+
 function formatMonto(v: number | null): string {
   if (v == null) return '-';
   return `$${v.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`;
@@ -273,6 +280,29 @@ export default function Derivaciones() {
         : [...prev, op].sort((a, b) => a.nombre.localeCompare(b.nombre)),
     );
     return op;
+  }, []);
+
+  // Da de baja (borrado lógico) una opción de catálogo y la saca de la lista en
+  // memoria. Si estaba seleccionada en el formulario, se limpia esa selección.
+  const eliminarOpcion = useCallback(async (
+    endpoint: string,
+    setter: React.Dispatch<React.SetStateAction<OpcionGuia[]>>,
+    op: OpcionGuia,
+  ): Promise<boolean> => {
+    const res = await fetchAuth(`${API}/${endpoint}/${op.id}`, { method: 'DELETE' });
+    if (!res.ok) return false;
+    setter(prev => prev.filter(x => x.id !== op.id));
+    const idStr = String(op.id);
+    setForm(f => {
+      const next = { ...f };
+      (Object.keys(next) as (keyof FormData)[]).forEach((k) => {
+        if (typeof k === 'string' && k.startsWith('id_') && (next as any)[k] === idStr) {
+          (next as any)[k] = '';
+        }
+      });
+      return next;
+    });
+    return true;
   }, []);
 
   const cargarDerivaciones = useCallback(async () => {
@@ -805,6 +835,7 @@ export default function Derivaciones() {
                       opciones={destinos}
                       onChange={(v) => updateForm('id_destino', v)}
                       onCrear={(n) => crearOpcion('destinos', setDestinos, n)}
+                      onEliminar={(o) => eliminarOpcion('destinos', setDestinos, o)}
                       disabled={soloLectura}
                     />
                     <SelectConCarga
@@ -814,6 +845,7 @@ export default function Derivaciones() {
                       opciones={centrosMedicos}
                       onChange={(v) => updateForm('id_centro_medico', v)}
                       onCrear={(n) => crearOpcion('centros-medicos', setCentrosMedicos, n)}
+                      onEliminar={(o) => eliminarOpcion('centros-medicos', setCentrosMedicos, o)}
                       disabled={soloLectura}
                     />
                     <SelectConCarga
@@ -823,6 +855,7 @@ export default function Derivaciones() {
                       opciones={coberturas}
                       onChange={(v) => updateForm('id_cobertura', v)}
                       onCrear={(n) => crearOpcion('coberturas', setCoberturas, n)}
+                      onEliminar={(o) => eliminarOpcion('coberturas', setCoberturas, o)}
                       disabled={soloLectura}
                     />
                   </div>
@@ -843,6 +876,7 @@ export default function Derivaciones() {
                       opciones={tiposTraslado}
                       onChange={(v) => updateForm('id_tipo_traslado', v)}
                       onCrear={(n) => crearOpcion('tipos-traslado', setTiposTraslado, n)}
+                      onEliminar={(o) => eliminarOpcion('tipos-traslado', setTiposTraslado, o)}
                       disabled={soloLectura}
                     />
                     <div className="dv-form-field">
@@ -863,6 +897,7 @@ export default function Derivaciones() {
                       opciones={coberturas}
                       onChange={(v) => updateForm('id_cobertura_alojamiento', v)}
                       onCrear={(n) => crearOpcion('coberturas', setCoberturas, n)}
+                      onEliminar={(o) => eliminarOpcion('coberturas', setCoberturas, o)}
                       disabled={soloLectura}
                     />
                     <SelectConCarga
@@ -871,6 +906,7 @@ export default function Derivaciones() {
                       opciones={tiposAlojamiento}
                       onChange={(v) => updateForm('id_tipo_alojamiento', v)}
                       onCrear={(n) => crearOpcion('tipos-alojamiento', setTiposAlojamiento, n)}
+                      onEliminar={(o) => eliminarOpcion('tipos-alojamiento', setTiposAlojamiento, o)}
                       disabled={soloLectura}
                     />
                     <SelectConCarga
@@ -879,6 +915,7 @@ export default function Derivaciones() {
                       opciones={lugaresAlojamiento}
                       onChange={(v) => updateForm('id_lugar_alojamiento', v)}
                       onCrear={(n) => crearOpcion('lugares-alojamiento', setLugaresAlojamiento, n)}
+                      onEliminar={(o) => eliminarOpcion('lugares-alojamiento', setLugaresAlojamiento, o)}
                       disabled={soloLectura}
                     />
                   </div>
@@ -977,10 +1014,14 @@ export default function Derivaciones() {
                 <tbody>
                   {derivaciones.map((d) => (
                     <tr key={d.id}>
-                      <td>{d.nro_disposicion || '-'}</td>
-                      <td>{d.afiliado_documento}</td>
+                      <td>
+                        {d.nro_disposicion
+                          ? <span className="dv-disp-badge">{d.nro_disposicion}</span>
+                          : <span className="dv-cell-empty">-</span>}
+                      </td>
+                      <td className="dv-dni-cell">{d.afiliado_documento}</td>
                       <td className="dv-name-cell">{d.afiliado_nombre || '-'}</td>
-                      <td>{d.fecha || '-'}</td>
+                      <td className="dv-fecha-cell">{formatFecha(d.fecha)}</td>
                       {!soloLectura && (
                       <td>
                         <div className="dv-actions">

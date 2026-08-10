@@ -11,19 +11,23 @@ interface Props {
   opciones: OpcionGuia[];
   onChange: (value: string) => void;
   onCrear: (nombre: string) => Promise<OpcionGuia | null>;
+  onEliminar?: (op: OpcionGuia) => Promise<boolean>; // borra (baja lógica) una opción
   disabled?: boolean;
   className?: string;
 }
 
 const NUEVO_IDX = -2; // índice virtual de la opción "+ Agregar nuevo…"
 
-export default function SelectConCarga({ label, value, opciones, onChange, onCrear, disabled, className }: Props) {
+export default function SelectConCarga({ label, value, opciones, onChange, onCrear, onEliminar, disabled, className }: Props) {
   const [abierto, setAbierto] = useState(false);
   const [activo, setActivo] = useState<number>(-1); // índice resaltado; NUEVO_IDX = agregar nuevo
   const [creando, setCreando] = useState(false);
   const [nuevo, setNuevo] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
+  const [confirmando, setConfirmando] = useState<OpcionGuia | null>(null); // opción a borrar
+  const [borrando, setBorrando] = useState(false);
+  const [errorBorrar, setErrorBorrar] = useState('');
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -160,6 +164,36 @@ export default function SelectConCarga({ label, value, opciones, onChange, onCre
     setError('');
   }
 
+  function pedirBorrado(op: OpcionGuia) {
+    setErrorBorrar('');
+    setConfirmando(op);
+    cerrar();
+  }
+
+  function cancelarBorrado() {
+    setConfirmando(null);
+    setErrorBorrar('');
+    setBorrando(false);
+  }
+
+  async function confirmarBorrado() {
+    if (!confirmando || !onEliminar) return;
+    setBorrando(true);
+    setErrorBorrar('');
+    try {
+      const ok = await onEliminar(confirmando);
+      if (ok) {
+        cancelarBorrado();
+      } else {
+        setErrorBorrar('No se pudo borrar');
+        setBorrando(false);
+      }
+    } catch {
+      setErrorBorrar('No se pudo borrar');
+      setBorrando(false);
+    }
+  }
+
   return (
     <div className={`dv-form-field${className ? ` ${className}` : ''}`}>
       <label className="dv-form-label">{label}</label>
@@ -223,8 +257,19 @@ export default function SelectConCarga({ label, value, opciones, onChange, onCre
                     onMouseEnter={() => setActivo(i)}
                     onMouseDown={(e) => { e.preventDefault(); seleccionar(i); }}
                   >
-                    {o.nombre}
+                    <span className="dv-cbx-option-txt">{o.nombre}</span>
                     {sel && <span className="dv-cbx-check" aria-hidden="true">✓</span>}
+                    {onEliminar && !disabled && (
+                      <button
+                        type="button"
+                        className="dv-cbx-borrar"
+                        title={`Borrar ${o.nombre}`}
+                        aria-label={`Borrar ${o.nombre}`}
+                        onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); pedirBorrado(o); }}
+                      >
+                        ✕
+                      </button>
+                    )}
                   </li>
                 );
               })}
@@ -241,6 +286,29 @@ export default function SelectConCarga({ label, value, opciones, onChange, onCre
               )}
             </ul>
           )}
+        </div>
+      )}
+
+      {confirmando && (
+        <div className="dv-modal-overlay" onMouseDown={(e) => e.stopPropagation()} onClick={cancelarBorrado}>
+          <div className="dv-modal dv-modal--sm" onClick={(e) => e.stopPropagation()}>
+            <h2 className="dv-modal-title">Borrar opción</h2>
+            <p className="dv-confirm-text">
+              ¿Estás seguro de que querés borrar{' '}
+              <span className="dv-confirm-name">{confirmando.nombre}</span> de {label.toLowerCase()}?
+              <br />
+              Dejará de aparecer en la lista, pero las derivaciones que ya la usan no se modifican.
+            </p>
+            {errorBorrar && <p className="dv-form-error">{errorBorrar}</p>}
+            <div className="dv-modal-btns">
+              <button type="button" className="dv-btn dv-btn--outline" onClick={cancelarBorrado} disabled={borrando}>
+                Cancelar
+              </button>
+              <button type="button" className="dv-btn dv-btn--danger" onClick={confirmarBorrado} disabled={borrando}>
+                {borrando ? 'Borrando...' : 'Borrar'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

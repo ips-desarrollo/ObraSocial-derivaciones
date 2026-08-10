@@ -1103,31 +1103,38 @@ def _ensure_derivacion_tables():
         cur.execute("""
             CREATE TABLE IF NOT EXISTS cobertura (
                 id SERIAL PRIMARY KEY,
-                nombre VARCHAR(100) NOT NULL UNIQUE
+                nombre VARCHAR(100) NOT NULL UNIQUE,
+                activo BOOLEAN NOT NULL DEFAULT TRUE
             );
             CREATE TABLE IF NOT EXISTS tipo_traslado (
                 id SERIAL PRIMARY KEY,
-                nombre VARCHAR(100) NOT NULL UNIQUE
+                nombre VARCHAR(100) NOT NULL UNIQUE,
+                activo BOOLEAN NOT NULL DEFAULT TRUE
             );
             CREATE TABLE IF NOT EXISTS tipo_alojamiento (
                 id SERIAL PRIMARY KEY,
-                nombre VARCHAR(100) NOT NULL UNIQUE
+                nombre VARCHAR(100) NOT NULL UNIQUE,
+                activo BOOLEAN NOT NULL DEFAULT TRUE
             );
             CREATE TABLE IF NOT EXISTS centro_medico (
                 id SERIAL PRIMARY KEY,
-                nombre VARCHAR(200) NOT NULL UNIQUE
+                nombre VARCHAR(200) NOT NULL UNIQUE,
+                activo BOOLEAN NOT NULL DEFAULT TRUE
             );
             CREATE TABLE IF NOT EXISTS lugar_alojamiento (
                 id SERIAL PRIMARY KEY,
-                nombre VARCHAR(200) NOT NULL UNIQUE
+                nombre VARCHAR(200) NOT NULL UNIQUE,
+                activo BOOLEAN NOT NULL DEFAULT TRUE
             );
             CREATE TABLE IF NOT EXISTS tipo_patologia (
                 id SERIAL PRIMARY KEY,
-                tipo_pat VARCHAR(100) NOT NULL UNIQUE
+                tipo_pat VARCHAR(100) NOT NULL UNIQUE,
+                activo BOOLEAN NOT NULL DEFAULT TRUE
             );
             CREATE TABLE IF NOT EXISTS tratamiento (
                 id SERIAL PRIMARY KEY,
-                tratamiento VARCHAR(200) NOT NULL UNIQUE
+                tratamiento VARCHAR(200) NOT NULL UNIQUE,
+                activo BOOLEAN NOT NULL DEFAULT TRUE
             );
             CREATE TABLE IF NOT EXISTS derivacion (
                 id_derivacion SERIAL PRIMARY KEY,
@@ -1195,6 +1202,16 @@ def _ensure_derivacion_tables():
                 pg.commit()
             except Exception:
                 pg.rollback()
+        # Borrado lógico de las tablas guía: se agrega "activo" a las BD ya creadas
+        for tabla in (
+            "cobertura", "tipo_traslado", "tipo_alojamiento", "centro_medico",
+            "lugar_alojamiento", "tipo_patologia", "tratamiento", "destino",
+        ):
+            try:
+                cur.execute(f"ALTER TABLE {tabla} ADD COLUMN IF NOT EXISTS activo BOOLEAN NOT NULL DEFAULT TRUE")
+                pg.commit()
+            except Exception:
+                pg.rollback()
         # Backfill idempotente: pasar el texto libre existente a los catálogos
         try:
             cur.execute("""
@@ -1235,7 +1252,7 @@ def listar_coberturas(token: str | None = Depends(oauth2_scheme)):
     try:
         pg = get_pg_connection()
         cur = pg.cursor()
-        cur.execute("SELECT id, nombre FROM cobertura ORDER BY nombre")
+        cur.execute("SELECT id, nombre FROM cobertura WHERE activo = TRUE ORDER BY nombre")
         rows = cur.fetchall()
         cur.close()
         pg.close()
@@ -1254,7 +1271,7 @@ def crear_cobertura(nombre: str, token: str | None = Depends(oauth2_scheme)):
     try:
         pg = get_pg_connection()
         cur = pg.cursor()
-        cur.execute("INSERT INTO cobertura (nombre) VALUES (%s) ON CONFLICT (nombre) DO NOTHING RETURNING id", (nombre,))
+        cur.execute("INSERT INTO cobertura (nombre) VALUES (%s) ON CONFLICT (nombre) DO UPDATE SET activo = TRUE RETURNING id", (nombre,))
         row = cur.fetchone()
         if row is None:
             cur.execute("SELECT id FROM cobertura WHERE nombre = %s", (nombre,))
@@ -1275,7 +1292,7 @@ def listar_tipos_traslado(token: str | None = Depends(oauth2_scheme)):
     try:
         pg = get_pg_connection()
         cur = pg.cursor()
-        cur.execute("SELECT id, nombre FROM tipo_traslado ORDER BY nombre")
+        cur.execute("SELECT id, nombre FROM tipo_traslado WHERE activo = TRUE ORDER BY nombre")
         rows = cur.fetchall()
         cur.close()
         pg.close()
@@ -1294,7 +1311,7 @@ def crear_tipo_traslado(nombre: str, token: str | None = Depends(oauth2_scheme))
     try:
         pg = get_pg_connection()
         cur = pg.cursor()
-        cur.execute("INSERT INTO tipo_traslado (nombre) VALUES (%s) ON CONFLICT (nombre) DO NOTHING RETURNING id", (nombre,))
+        cur.execute("INSERT INTO tipo_traslado (nombre) VALUES (%s) ON CONFLICT (nombre) DO UPDATE SET activo = TRUE RETURNING id", (nombre,))
         row = cur.fetchone()
         if row is None:
             cur.execute("SELECT id FROM tipo_traslado WHERE nombre = %s", (nombre,))
@@ -1315,7 +1332,7 @@ def listar_tipos_alojamiento(token: str | None = Depends(oauth2_scheme)):
     try:
         pg = get_pg_connection()
         cur = pg.cursor()
-        cur.execute("SELECT id, nombre FROM tipo_alojamiento ORDER BY nombre")
+        cur.execute("SELECT id, nombre FROM tipo_alojamiento WHERE activo = TRUE ORDER BY nombre")
         rows = cur.fetchall()
         cur.close()
         pg.close()
@@ -1334,7 +1351,7 @@ def crear_tipo_alojamiento(nombre: str, token: str | None = Depends(oauth2_schem
     try:
         pg = get_pg_connection()
         cur = pg.cursor()
-        cur.execute("INSERT INTO tipo_alojamiento (nombre) VALUES (%s) ON CONFLICT (nombre) DO NOTHING RETURNING id", (nombre,))
+        cur.execute("INSERT INTO tipo_alojamiento (nombre) VALUES (%s) ON CONFLICT (nombre) DO UPDATE SET activo = TRUE RETURNING id", (nombre,))
         row = cur.fetchone()
         if row is None:
             cur.execute("SELECT id FROM tipo_alojamiento WHERE nombre = %s", (nombre,))
@@ -1355,7 +1372,7 @@ def listar_tipos_patologia(token: str | None = Depends(oauth2_scheme)):
     try:
         pg = get_pg_connection()
         cur = pg.cursor()
-        cur.execute("SELECT id, tipo_pat FROM tipo_patologia ORDER BY tipo_pat")
+        cur.execute("SELECT id, tipo_pat FROM tipo_patologia WHERE activo = TRUE ORDER BY tipo_pat")
         rows = cur.fetchall()
         cur.close()
         pg.close()
@@ -1374,7 +1391,7 @@ def crear_tipo_patologia(nombre: str, token: str | None = Depends(oauth2_scheme)
     try:
         pg = get_pg_connection()
         cur = pg.cursor()
-        cur.execute("INSERT INTO tipo_patologia (tipo_pat) VALUES (%s) ON CONFLICT (tipo_pat) DO NOTHING RETURNING id", (nombre,))
+        cur.execute("INSERT INTO tipo_patologia (tipo_pat) VALUES (%s) ON CONFLICT (tipo_pat) DO UPDATE SET activo = TRUE RETURNING id", (nombre,))
         row = cur.fetchone()
         if row is None:
             cur.execute("SELECT id FROM tipo_patologia WHERE tipo_pat = %s", (nombre,))
@@ -1395,7 +1412,7 @@ def listar_tratamientos(token: str | None = Depends(oauth2_scheme)):
     try:
         pg = get_pg_connection()
         cur = pg.cursor()
-        cur.execute("SELECT id, tratamiento FROM tratamiento ORDER BY tratamiento")
+        cur.execute("SELECT id, tratamiento FROM tratamiento WHERE activo = TRUE ORDER BY tratamiento")
         rows = cur.fetchall()
         cur.close()
         pg.close()
@@ -1414,7 +1431,7 @@ def crear_tratamiento(nombre: str, token: str | None = Depends(oauth2_scheme)):
     try:
         pg = get_pg_connection()
         cur = pg.cursor()
-        cur.execute("INSERT INTO tratamiento (tratamiento) VALUES (%s) ON CONFLICT (tratamiento) DO NOTHING RETURNING id", (nombre,))
+        cur.execute("INSERT INTO tratamiento (tratamiento) VALUES (%s) ON CONFLICT (tratamiento) DO UPDATE SET activo = TRUE RETURNING id", (nombre,))
         row = cur.fetchone()
         if row is None:
             cur.execute("SELECT id FROM tratamiento WHERE tratamiento = %s", (nombre,))
@@ -1435,7 +1452,7 @@ def listar_centros_medicos(token: str | None = Depends(oauth2_scheme)):
     try:
         pg = get_pg_connection()
         cur = pg.cursor()
-        cur.execute("SELECT id, nombre FROM centro_medico ORDER BY nombre")
+        cur.execute("SELECT id, nombre FROM centro_medico WHERE activo = TRUE ORDER BY nombre")
         rows = cur.fetchall()
         cur.close()
         pg.close()
@@ -1454,7 +1471,7 @@ def crear_centro_medico(nombre: str, token: str | None = Depends(oauth2_scheme))
     try:
         pg = get_pg_connection()
         cur = pg.cursor()
-        cur.execute("INSERT INTO centro_medico (nombre) VALUES (%s) ON CONFLICT (nombre) DO NOTHING RETURNING id", (nombre,))
+        cur.execute("INSERT INTO centro_medico (nombre) VALUES (%s) ON CONFLICT (nombre) DO UPDATE SET activo = TRUE RETURNING id", (nombre,))
         row = cur.fetchone()
         if row is None:
             cur.execute("SELECT id FROM centro_medico WHERE nombre = %s", (nombre,))
@@ -1475,7 +1492,7 @@ def listar_destinos(token: str | None = Depends(oauth2_scheme)):
     try:
         pg = get_pg_connection()
         cur = pg.cursor()
-        cur.execute("SELECT id, nombre FROM destino ORDER BY nombre")
+        cur.execute("SELECT id, nombre FROM destino WHERE activo = TRUE ORDER BY nombre")
         rows = cur.fetchall()
         cur.close()
         pg.close()
@@ -1494,7 +1511,7 @@ def crear_destino(nombre: str, token: str | None = Depends(oauth2_scheme)):
     try:
         pg = get_pg_connection()
         cur = pg.cursor()
-        cur.execute("INSERT INTO destino (nombre) VALUES (%s) ON CONFLICT (nombre) DO NOTHING RETURNING id", (nombre,))
+        cur.execute("INSERT INTO destino (nombre) VALUES (%s) ON CONFLICT (nombre) DO UPDATE SET activo = TRUE RETURNING id", (nombre,))
         row = cur.fetchone()
         if row is None:
             cur.execute("SELECT id FROM destino WHERE nombre = %s", (nombre,))
@@ -1515,7 +1532,7 @@ def listar_lugares_alojamiento(token: str | None = Depends(oauth2_scheme)):
     try:
         pg = get_pg_connection()
         cur = pg.cursor()
-        cur.execute("SELECT id, nombre FROM lugar_alojamiento ORDER BY nombre")
+        cur.execute("SELECT id, nombre FROM lugar_alojamiento WHERE activo = TRUE ORDER BY nombre")
         rows = cur.fetchall()
         cur.close()
         pg.close()
@@ -1534,7 +1551,7 @@ def crear_lugar_alojamiento(nombre: str, token: str | None = Depends(oauth2_sche
     try:
         pg = get_pg_connection()
         cur = pg.cursor()
-        cur.execute("INSERT INTO lugar_alojamiento (nombre) VALUES (%s) ON CONFLICT (nombre) DO NOTHING RETURNING id", (nombre,))
+        cur.execute("INSERT INTO lugar_alojamiento (nombre) VALUES (%s) ON CONFLICT (nombre) DO UPDATE SET activo = TRUE RETURNING id", (nombre,))
         row = cur.fetchone()
         if row is None:
             cur.execute("SELECT id FROM lugar_alojamiento WHERE nombre = %s", (nombre,))
@@ -1545,6 +1562,84 @@ def crear_lugar_alojamiento(nombre: str, token: str | None = Depends(oauth2_sche
         return {"id": row[0], "nombre": nombre}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# Mapa endpoint -> tabla guía, para el borrado lógico de opciones.
+_CATALOGOS = {
+    "coberturas": "cobertura",
+    "tipos-traslado": "tipo_traslado",
+    "tipos-alojamiento": "tipo_alojamiento",
+    "tipos-patologia": "tipo_patologia",
+    "tratamientos": "tratamiento",
+    "centros-medicos": "centro_medico",
+    "destinos": "destino",
+    "lugares-alojamiento": "lugar_alojamiento",
+}
+
+
+def _baja_opcion_catalogo(tabla: str, id_opcion: int, token: str | None):
+    """Borrado lógico: marca la opción como inactiva sin eliminarla de la BD,
+    para preservar el historial de derivaciones que la referencian."""
+    uid, _ = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    if _solo_lectura(_extraer_roles(token)):
+        raise HTTPException(status_code=403, detail="Sin permisos")
+    try:
+        pg = get_pg_connection()
+        cur = pg.cursor()
+        cur.execute(f"UPDATE {tabla} SET activo = FALSE WHERE id = %s", (id_opcion,))
+        afectadas = cur.rowcount
+        pg.commit()
+        cur.close()
+        pg.close()
+        if afectadas == 0:
+            raise HTTPException(status_code=404, detail="Opción no encontrada")
+        return {"ok": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/coberturas/{id_opcion}")
+def eliminar_cobertura(id_opcion: int, token: str | None = Depends(oauth2_scheme)):
+    return _baja_opcion_catalogo("cobertura", id_opcion, token)
+
+
+@app.delete("/tipos-traslado/{id_opcion}")
+def eliminar_tipo_traslado(id_opcion: int, token: str | None = Depends(oauth2_scheme)):
+    return _baja_opcion_catalogo("tipo_traslado", id_opcion, token)
+
+
+@app.delete("/tipos-alojamiento/{id_opcion}")
+def eliminar_tipo_alojamiento(id_opcion: int, token: str | None = Depends(oauth2_scheme)):
+    return _baja_opcion_catalogo("tipo_alojamiento", id_opcion, token)
+
+
+@app.delete("/tipos-patologia/{id_opcion}")
+def eliminar_tipo_patologia(id_opcion: int, token: str | None = Depends(oauth2_scheme)):
+    return _baja_opcion_catalogo("tipo_patologia", id_opcion, token)
+
+
+@app.delete("/tratamientos/{id_opcion}")
+def eliminar_tratamiento(id_opcion: int, token: str | None = Depends(oauth2_scheme)):
+    return _baja_opcion_catalogo("tratamiento", id_opcion, token)
+
+
+@app.delete("/centros-medicos/{id_opcion}")
+def eliminar_centro_medico(id_opcion: int, token: str | None = Depends(oauth2_scheme)):
+    return _baja_opcion_catalogo("centro_medico", id_opcion, token)
+
+
+@app.delete("/destinos/{id_opcion}")
+def eliminar_destino(id_opcion: int, token: str | None = Depends(oauth2_scheme)):
+    return _baja_opcion_catalogo("destino", id_opcion, token)
+
+
+@app.delete("/lugares-alojamiento/{id_opcion}")
+def eliminar_lugar_alojamiento(id_opcion: int, token: str | None = Depends(oauth2_scheme)):
+    return _baja_opcion_catalogo("lugar_alojamiento", id_opcion, token)
 
 
 _DERIVACION_SELECT = """
