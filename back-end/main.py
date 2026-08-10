@@ -1787,14 +1787,20 @@ def _row_to_derivacion(r):
 
 
 @app.get("/derivaciones")
-def listar_derivaciones(mes: str = "", token: str | None = Depends(oauth2_scheme)):
+def listar_derivaciones(mes: str = "", documento: str = "", token: str | None = Depends(oauth2_scheme)):
     uid, _ = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
     try:
         pg = get_pg_connection()
         cur = pg.cursor()
-        if mes:
+        if documento:
+            # Legajo: todas las derivaciones del afiliado, de la más nueva a la más vieja.
+            cur.execute(
+                _DERIVACION_SELECT + " WHERE d.afiliado_documento = %s ORDER BY d.fecha DESC, d.id_derivacion DESC",
+                (documento,),
+            )
+        elif mes:
             cur.execute(
                 _DERIVACION_SELECT + " WHERE d.mes = %s ORDER BY d.fecha, d.id_derivacion",
                 (mes,),

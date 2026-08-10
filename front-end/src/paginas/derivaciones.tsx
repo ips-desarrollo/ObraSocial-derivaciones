@@ -839,16 +839,6 @@ export default function Derivaciones() {
                   </div>
 
                   <SelectConCarga
-                    label="Tratamiento"
-                    value={form.id_tratamiento}
-                    opciones={tratamientos}
-                    onChange={(v) => updateForm('id_tratamiento', v)}
-                    onCrear={(n) => crearOpcion('tratamientos', setTratamientos, n)}
-                    onEliminar={(o) => eliminarOpcion('tratamientos', setTratamientos, o)}
-                    disabled={soloLectura}
-                  />
-
-                  <SelectConCarga
                     label="Diagnóstico"
                     value={form.id_diagnostico}
                     opciones={diagnosticos}
@@ -860,6 +850,16 @@ export default function Derivaciones() {
                   {!form.id_tipo_patologia && (
                     <span className="dv-form-hint">Elegí primero un tipo de patología para cargar el diagnóstico.</span>
                   )}
+
+                  <SelectConCarga
+                    label="Tratamiento"
+                    value={form.id_tratamiento}
+                    opciones={tratamientos}
+                    onChange={(v) => updateForm('id_tratamiento', v)}
+                    onCrear={(n) => crearOpcion('tratamientos', setTratamientos, n)}
+                    onEliminar={(o) => eliminarOpcion('tratamientos', setTratamientos, o)}
+                    disabled={soloLectura}
+                  />
                 </div>
               </div>
 
