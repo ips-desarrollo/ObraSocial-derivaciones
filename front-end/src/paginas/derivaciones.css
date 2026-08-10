@@ -632,8 +632,10 @@
   margin: 0;
   padding: 0.3rem;
   list-style: none;
-  max-height: 240px;
+  /* ~5 opciones visibles (cada una ≈ 1.9rem) y luego scroll */
+  max-height: calc(5 * 1.9rem + 0.6rem);
   overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
