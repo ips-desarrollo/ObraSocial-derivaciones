@@ -23,8 +23,10 @@ interface Derivacion {
   fecha_turno: string | null;
   id_tipo_patologia: number | null;
   id_tratamiento: number | null;
+  id_diagnostico: number | null;
   tipo_patologia_nombre: string | null;
   tratamiento_nombre: string | null;
+  diagnostico_nombre: string | null;
   diagnostico_tratamiento: string | null;
   destino: string | null;
   id_destino: number | null;
@@ -87,6 +89,7 @@ interface FormData {
   fecha_turno: string;
   id_tipo_patologia: string;
   id_tratamiento: string;
+  id_diagnostico: string;
   diagnostico_tratamiento: string;
   destino: string;
   id_destino: string;
@@ -119,6 +122,7 @@ const emptyForm: FormData = {
   fecha_turno: '',
   id_tipo_patologia: '',
   id_tratamiento: '',
+  id_diagnostico: '',
   diagnostico_tratamiento: '',
   destino: '',
   id_destino: '',
@@ -238,6 +242,8 @@ export default function Derivaciones() {
   const [centrosMedicos, setCentrosMedicos] = useState<OpcionGuia[]>([]);
   const [destinos, setDestinos] = useState<OpcionGuia[]>([]);
   const [lugaresAlojamiento, setLugaresAlojamiento] = useState<OpcionGuia[]>([]);
+  // Diagnósticos del tipo de patología seleccionado (dependiente)
+  const [diagnosticos, setDiagnosticos] = useState<OpcionGuia[]>([]);
 
   useEffect(() => {
     async function cargarGuias() {
@@ -303,6 +309,20 @@ export default function Derivaciones() {
       return next;
     });
     return true;
+  }, []);
+
+  // Carga los diagnósticos activos del tipo de patología indicado.
+  const cargarDiagnosticosPatologia = useCallback(async (idTipoPat: string) => {
+    if (!idTipoPat) {
+      setDiagnosticos([]);
+      return;
+    }
+    try {
+      const res = await fetchAuth(`${API}/diagnosticos-patologia?id_tipo_patologia=${idTipoPat}`);
+      setDiagnosticos(res.ok ? await res.json() : []);
+    } catch {
+      setDiagnosticos([]);
+    }
   }, []);
 
   const cargarDerivaciones = useCallback(async () => {
@@ -464,6 +484,7 @@ export default function Derivaciones() {
     setResultadosAfiliado([]);
     setPatologiasAfiliado([]);
     setDiagnosticosDisponibles([]);
+    setDiagnosticos([]);
     setCieClave('');
     setVista('crear');
   }
@@ -498,6 +519,7 @@ export default function Derivaciones() {
       monto_alojamiento: numeroAMontoInput(d.monto_alojamiento),
       id_tipo_patologia: d.id_tipo_patologia != null ? String(d.id_tipo_patologia) : '',
       id_tratamiento: d.id_tratamiento != null ? String(d.id_tratamiento) : '',
+      id_diagnostico: d.id_diagnostico != null ? String(d.id_diagnostico) : '',
       diagnostico_tratamiento: d.diagnostico_tratamiento || '',
     });
     setEditId(d.id);
@@ -506,8 +528,13 @@ export default function Derivaciones() {
     setResultadosAfiliado([]);
     setPatologiasAfiliado([]);
     setDiagnosticosDisponibles([]);
+    setDiagnosticos([]);
     setCieClave('');
     setVista('editar');
+    // Carga los diagnósticos del tipo elegido para que se vea el seleccionado.
+    if (d.id_tipo_patologia != null) {
+      cargarDiagnosticosPatologia(String(d.id_tipo_patologia));
+    }
     await cargarPatologias(Number(d.afiliado_documento));
   }
 
@@ -541,6 +568,40 @@ export default function Derivaciones() {
     });
   }
 
+  // Al cambiar el tipo de patología se recargan sus diagnósticos y se limpia
+  // el diagnóstico elegido (pertenecía al tipo anterior).
+  function cambiarTipoPatologia(value: string) {
+    setForm(f => ({ ...f, id_tipo_patologia: value, id_diagnostico: '' }));
+    cargarDiagnosticosPatologia(value);
+  }
+
+  // Crea/reactiva un diagnóstico dentro del tipo de patología seleccionado.
+  async function crearDiagnostico(nombre: string): Promise<OpcionGuia | null> {
+    const idTipoPat = form.id_tipo_patologia;
+    if (!idTipoPat) return null;
+    const res = await fetchAuth(
+      `${API}/diagnosticos-patologia?id_tipo_patologia=${idTipoPat}&nombre=${encodeURIComponent(nombre)}`,
+      { method: 'POST' },
+    );
+    if (!res.ok) return null;
+    const op: OpcionGuia = await res.json();
+    setDiagnosticos(prev =>
+      prev.some(x => x.id === op.id)
+        ? prev
+        : [...prev, op].sort((a, b) => a.nombre.localeCompare(b.nombre)),
+    );
+    return op;
+  }
+
+  // Da de baja (borrado lógico) un diagnóstico y lo saca de la lista.
+  async function eliminarDiagnostico(op: OpcionGuia): Promise<boolean> {
+    const res = await fetchAuth(`${API}/diagnosticos-patologia/${op.id}`, { method: 'DELETE' });
+    if (!res.ok) return false;
+    setDiagnosticos(prev => prev.filter(x => x.id !== op.id));
+    setForm(f => (f.id_diagnostico === String(op.id) ? { ...f, id_diagnostico: '' } : f));
+    return true;
+  }
+
   async function guardar() {
     if (!form.afiliado_documento) {
       setFormError('Debe seleccionar un afiliado');
@@ -571,6 +632,7 @@ export default function Derivaciones() {
       fecha_turno: form.fecha_turno || null,
       id_tipo_patologia: form.id_tipo_patologia ? parseInt(form.id_tipo_patologia) : null,
       id_tratamiento: form.id_tratamiento ? parseInt(form.id_tratamiento) : null,
+      id_diagnostico: form.id_diagnostico ? parseInt(form.id_diagnostico) : null,
       diagnostico_tratamiento: form.diagnostico_tratamiento || null,
       destino: form.destino || null,
       id_destino: form.id_destino ? parseInt(form.id_destino) : null,
@@ -756,19 +818,15 @@ export default function Derivaciones() {
                   <p className="dv-form-section">Tratamiento</p>
 
                   <div className="dv-form-row">
-                    <div className="dv-form-field">
-                      <label className="dv-form-label">Tipo de patología</label>
-                      <select
-                        className="dv-form-input"
-                        value={form.id_tipo_patologia}
-                        onChange={(e) => updateForm('id_tipo_patologia', e.target.value)}
-                      >
-                        <option value="">— Seleccionar —</option>
-                        {tiposPatologia.map((tp) => (
-                          <option key={tp.id} value={String(tp.id)}>{tp.nombre}</option>
-                        ))}
-                      </select>
-                    </div>
+                    <SelectConCarga
+                      label="Tipo de patología"
+                      value={form.id_tipo_patologia}
+                      opciones={tiposPatologia}
+                      onChange={(v) => cambiarTipoPatologia(v)}
+                      onCrear={(n) => crearOpcion('tipos-patologia', setTiposPatologia, n)}
+                      onEliminar={(o) => eliminarOpcion('tipos-patologia', setTiposPatologia, o)}
+                      disabled={soloLectura}
+                    />
                     <div className="dv-form-field">
                       <label className="dv-form-label">Tratamiento</label>
                       <select
@@ -794,14 +852,18 @@ export default function Derivaciones() {
                     />
                   </div>
 
-                  <div className="dv-form-field">
-                    <label className="dv-form-label">Diagnóstico</label>
-                    <textarea
-                      className="dv-form-textarea"
-                      value={form.diagnostico_tratamiento}
-                      onChange={(e) => updateForm('diagnostico_tratamiento', e.target.value)}
-                    />
-                  </div>
+                  <SelectConCarga
+                    label="Diagnóstico"
+                    value={form.id_diagnostico}
+                    opciones={diagnosticos}
+                    onChange={(v) => updateForm('id_diagnostico', v)}
+                    onCrear={crearDiagnostico}
+                    onEliminar={eliminarDiagnostico}
+                    disabled={soloLectura || !form.id_tipo_patologia}
+                  />
+                  {!form.id_tipo_patologia && (
+                    <span className="dv-form-hint">Elegí primero un tipo de patología para cargar el diagnóstico.</span>
+                  )}
                 </div>
               </div>
 

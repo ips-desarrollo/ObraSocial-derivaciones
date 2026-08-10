@@ -535,6 +535,13 @@
   padding: 0.45rem 0.7rem;
 }
 
+.dv-form-hint {
+  margin-top: 0.25rem;
+  font-size: 0.78rem;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
 .dv-nuevo-row {
   display: flex;
   align-items: center;

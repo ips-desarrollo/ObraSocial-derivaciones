@@ -1078,6 +1078,7 @@ class DerivacionRequest(BaseModel):
     fecha_turno: str | None = None
     id_tipo_patologia: int | None = None
     id_tratamiento: int | None = None
+    id_diagnostico: int | None = None
     diagnostico_tratamiento: str | None = None
     destino: str | None = None
     id_destino: int | None = None
@@ -1136,6 +1137,13 @@ def _ensure_derivacion_tables():
                 tratamiento VARCHAR(200) NOT NULL UNIQUE,
                 activo BOOLEAN NOT NULL DEFAULT TRUE
             );
+            CREATE TABLE IF NOT EXISTS diagnostico (
+                id SERIAL PRIMARY KEY,
+                id_tipo_patologia INTEGER NOT NULL REFERENCES tipo_patologia(id),
+                nombre VARCHAR(200) NOT NULL,
+                activo BOOLEAN NOT NULL DEFAULT TRUE,
+                UNIQUE (id_tipo_patologia, nombre)
+            );
             CREATE TABLE IF NOT EXISTS derivacion (
                 id_derivacion SERIAL PRIMARY KEY,
                 mes VARCHAR(20),
@@ -1153,6 +1161,7 @@ def _ensure_derivacion_tables():
                 fecha_turno DATE,
                 id_tipo_patologia INTEGER REFERENCES tipo_patologia(id),
                 id_tratamiento INTEGER REFERENCES tratamiento(id),
+                id_diagnostico INTEGER REFERENCES diagnostico(id),
                 diagnostico_tratamiento TEXT,
                 creado_en TIMESTAMP DEFAULT NOW(),
                 creado_por VARCHAR(100)
@@ -1186,6 +1195,7 @@ def _ensure_derivacion_tables():
         for col, defn in [
             ("id_tipo_patologia", "INTEGER REFERENCES tipo_patologia(id)"),
             ("id_tratamiento", "INTEGER REFERENCES tratamiento(id)"),
+            ("id_diagnostico", "INTEGER REFERENCES diagnostico(id)"),
             ("diagnostico_tratamiento", "TEXT"),
         ]:
             try:
@@ -1642,6 +1652,58 @@ def eliminar_lugar_alojamiento(id_opcion: int, token: str | None = Depends(oauth
     return _baja_opcion_catalogo("lugar_alojamiento", id_opcion, token)
 
 
+# ── Diagnósticos por tipo de patología ──
+# Cada diagnóstico pertenece a un tipo de patología (1 tipo -> N diagnósticos).
+@app.get("/diagnosticos-patologia")
+def listar_diagnosticos_patologia(id_tipo_patologia: int, token: str | None = Depends(oauth2_scheme)):
+    uid, _ = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    try:
+        pg = get_pg_connection()
+        cur = pg.cursor()
+        cur.execute(
+            "SELECT id, nombre FROM diagnostico WHERE id_tipo_patologia = %s AND activo = TRUE ORDER BY nombre",
+            (id_tipo_patologia,),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        pg.close()
+        return [{"id": r[0], "nombre": r[1]} for r in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/diagnosticos-patologia")
+def crear_diagnostico_patologia(id_tipo_patologia: int, nombre: str, token: str | None = Depends(oauth2_scheme)):
+    uid, _ = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    if _solo_lectura(_extraer_roles(token)):
+        raise HTTPException(status_code=403, detail="Sin permisos")
+    try:
+        pg = get_pg_connection()
+        cur = pg.cursor()
+        cur.execute(
+            """INSERT INTO diagnostico (id_tipo_patologia, nombre) VALUES (%s, %s)
+               ON CONFLICT (id_tipo_patologia, nombre) DO UPDATE SET activo = TRUE
+               RETURNING id""",
+            (id_tipo_patologia, nombre),
+        )
+        row = cur.fetchone()
+        pg.commit()
+        cur.close()
+        pg.close()
+        return {"id": row[0], "nombre": nombre}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/diagnosticos-patologia/{id_opcion}")
+def eliminar_diagnostico_patologia(id_opcion: int, token: str | None = Depends(oauth2_scheme)):
+    return _baja_opcion_catalogo("diagnostico", id_opcion, token)
+
+
 _DERIVACION_SELECT = """
     SELECT d.id_derivacion, d.mes, d.nro_disposicion, d.fecha,
            d.afiliado_documento, d.afiliado_nombre, d.afiliado_credencial,
@@ -1659,7 +1721,8 @@ _DERIVACION_SELECT = """
            d.id_tratamiento, tr.tratamiento,
            d.diagnostico_tratamiento,
            dp.id_centro_medico, da.id_lugar_alojamiento,
-           dp.id_destino
+           dp.id_destino,
+           d.id_diagnostico, dg.nombre
     FROM derivacion d
     LEFT JOIN derivacion_prestacion dp ON dp.id_derivacion = d.id_derivacion
     LEFT JOIN cobertura c ON c.id = dp.id_cobertura
@@ -1673,6 +1736,7 @@ _DERIVACION_SELECT = """
     LEFT JOIN lugar_alojamiento la ON la.id = da.id_lugar_alojamiento
     LEFT JOIN tipo_patologia tp ON tp.id = d.id_tipo_patologia
     LEFT JOIN tratamiento tr ON tr.id = d.id_tratamiento
+    LEFT JOIN diagnostico dg ON dg.id = d.id_diagnostico
 """
 
 
@@ -1717,6 +1781,8 @@ def _row_to_derivacion(r):
         "id_centro_medico": r[36],
         "id_lugar_alojamiento": r[37],
         "id_destino": r[38],
+        "id_diagnostico": r[39],
+        "diagnostico_nombre": r[40],
     }
 
 
@@ -1788,9 +1854,9 @@ def crear_derivacion(datos: DerivacionRequest, token: str | None = Depends(oauth
                     afiliado_documento, afiliado_nombre, afiliado_credencial,
                     afiliado_edad, afiliado_sexo,
                     tipo_patologia, diagnostico, tratamiento, fecha_turno,
-                    id_tipo_patologia, id_tratamiento, diagnostico_tratamiento,
+                    id_tipo_patologia, id_tratamiento, id_diagnostico, diagnostico_tratamiento,
                     creado_por)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                RETURNING id_derivacion""",
             (
                 datos.mes,
@@ -1808,6 +1874,7 @@ def crear_derivacion(datos: DerivacionRequest, token: str | None = Depends(oauth
                 _to_fecha_sql(datos.fecha_turno),
                 datos.id_tipo_patologia,
                 datos.id_tratamiento,
+                datos.id_diagnostico,
                 _to_str(datos.diagnostico_tratamiento),
                 uemail or str(uid),
             ),
@@ -1867,7 +1934,7 @@ def actualizar_derivacion(derivacion_id: int, datos: DerivacionRequest, token: s
                    afiliado_documento=%s, afiliado_nombre=%s, afiliado_credencial=%s,
                    afiliado_edad=%s, afiliado_sexo=%s,
                    tipo_patologia=%s, diagnostico=%s, tratamiento=%s, fecha_turno=%s,
-                   id_tipo_patologia=%s, id_tratamiento=%s, diagnostico_tratamiento=%s
+                   id_tipo_patologia=%s, id_tratamiento=%s, id_diagnostico=%s, diagnostico_tratamiento=%s
                WHERE id_derivacion=%s""",
             (
                 datos.mes,
@@ -1885,6 +1952,7 @@ def actualizar_derivacion(derivacion_id: int, datos: DerivacionRequest, token: s
                 _to_fecha_sql(datos.fecha_turno),
                 datos.id_tipo_patologia,
                 datos.id_tratamiento,
+                datos.id_diagnostico,
                 _to_str(datos.diagnostico_tratamiento),
                 derivacion_id,
             ),
