@@ -1,0 +1,251 @@
+/* ─── Costos — Resumen mensual estilo reporte ────────────────── */
+
+/* ─── Grid de 3 columnas (Prestaciones / Traslado / Alojamiento) ── */
+.cr-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ─── Cada sección ──────────────────────────────────────────── */
+.cr-section {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border-right: 1px solid var(--border);
+}
+
+.cr-section:last-child {
+  border-right: none;
+}
+
+.cr-section-title {
+  margin: 0;
+  padding: 0.65rem 1rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  text-align: center;
+  border-bottom: 2px solid var(--border);
+}
+
+.cr-section--prestacion .cr-section-title {
+  color: var(--ips);
+  background: var(--ips-subtle);
+  border-bottom-color: var(--ips);
+}
+
+.cr-section--traslado .cr-section-title {
+  color: var(--warning);
+  background: rgba(217, 119, 6, 0.06);
+  border-bottom-color: var(--warning);
+}
+
+.cr-section--alojamiento .cr-section-title {
+  color: var(--info);
+  background: rgba(37, 99, 235, 0.06);
+  border-bottom-color: var(--info);
+}
+
+/* ─── Tabla interna de cada sección ─────────────────────────── */
+.cr-section-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.cr-section-table td {
+  padding: 0.4rem 0.85rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.cr-cell-name {
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 0;
+  width: 100%;
+}
+
+.cr-cell-qty {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text) !important;
+  min-width: 32px;
+}
+
+.cr-cell-monto {
+  text-align: right;
+  white-space: nowrap;
+  font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text) !important;
+  min-width: 80px;
+}
+
+.cr-cell-bold {
+  font-weight: 700 !important;
+  color: var(--text) !important;
+}
+
+.cr-cell-empty {
+  font-style: italic;
+  color: var(--text-muted) !important;
+  text-align: center !important;
+  padding: 0.6rem 0.85rem !important;
+}
+
+/* Fila de total */
+.cr-row-total td {
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+
+/* Separador visual entre cantidades y montos */
+.cr-row-sep td {
+  padding: 0;
+  height: 6px;
+  background: var(--surface-2);
+  border-bottom: 2px solid var(--border);
+}
+
+/* ─── Fila de totales generales ─────────────────────────────── */
+.cr-totales {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  background: var(--surface-2);
+  flex-wrap: wrap;
+}
+
+.cr-total-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.5rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  min-width: 120px;
+}
+
+.cr-total-item--final {
+  background: #1e2e53;
+  border-color: #1e2e53;
+  position: relative;
+  overflow: hidden;
+}
+
+.cr-total-item--final::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 130% at 80% 50%, rgba(90, 116, 186, 0.4) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.cr-total-label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--label);
+}
+
+.cr-total-item--final .cr-total-label {
+  color: rgba(255, 255, 255, 0.55);
+  position: relative;
+  z-index: 1;
+}
+
+.cr-total-value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
+}
+
+.cr-total-value--final {
+  color: white;
+  font-size: 1.15rem;
+  font-weight: 800;
+  position: relative;
+  z-index: 1;
+}
+
+.cr-total-plus,
+.cr-total-eq {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.cr-total-eq {
+  color: var(--ips);
+}
+
+/* ─── Responsive ────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .cr-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cr-section {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .cr-section:last-child {
+    border-bottom: none;
+  }
+
+  .cr-totales {
+    gap: 0.5rem;
+    padding: 0.85rem;
+  }
+
+  .cr-total-item {
+    min-width: 90px;
+    padding: 0.4rem 0.65rem;
+  }
+
+  .cr-total-value {
+    font-size: 0.88rem;
+  }
+
+  .cr-total-plus,
+  .cr-total-eq {
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .cr-totales {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .cr-total-item {
+    flex-direction: row;
+    justify-content: space-between;
+    min-width: 0;
+  }
+
+  .cr-total-plus,
+  .cr-total-eq {
+    text-align: center;
+    font-size: 0.85rem;
+  }
+}

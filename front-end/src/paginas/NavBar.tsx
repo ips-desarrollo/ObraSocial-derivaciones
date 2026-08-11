@@ -18,12 +18,20 @@ export default function NavBar() {
 
   return (
     <nav className="nav">
-      <NavLink to="/afiliados" className="nav-brand">
+      <NavLink to="/inicio" className="nav-brand">
         <img src={logoSiglas} alt="IPS" className="nav-logo" />
+      </NavLink>
+
+      <NavLink to="/inicio" className="nav-link">
+        Inicio
       </NavLink>
 
       <NavLink to="/afiliados" className="nav-link">
         Afiliados
+      </NavLink>
+
+      <NavLink to="/costos" className="nav-link">
+        Costos
       </NavLink>
 
       {!soloLectura && (

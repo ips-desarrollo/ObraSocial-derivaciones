@@ -12,8 +12,7 @@
       "name": "front-end-dev",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--", "--host"],
-      "port": 5174,
-      "autoPort": true,
+      "port": 5175,
       "cwd": "front-end"
     }
   ]

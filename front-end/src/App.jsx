@@ -34,7 +34,7 @@ function App() {
       }
       localStorage.setItem('token', data.token)
       localStorage.setItem('usuario', JSON.stringify(data.usuario))
-      navigate('/afiliados')
+      navigate('/inicio')
     } catch {
       setError('No se pudo conectar con el servidor')
       setLoading(false)

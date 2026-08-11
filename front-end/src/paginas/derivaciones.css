@@ -595,8 +595,9 @@
 
 .dv-cbx-trigger:disabled {
   background: var(--surface-3);
-  color: var(--text-muted);
+  color: var(--text-secondary);
   cursor: default;
+  border-style: dashed;
 }
 
 .dv-cbx-valor {
