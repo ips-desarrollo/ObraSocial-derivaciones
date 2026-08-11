@@ -38,6 +38,10 @@ export default function NavBar() {
         Derivaciones
       </NavLink>
 
+      <NavLink to="/costos" className="nav-link">
+        Costos
+      </NavLink>
+
       {!soloLectura && (
         <NavLink to="/usuarios" className="nav-link">
           Usuarios
