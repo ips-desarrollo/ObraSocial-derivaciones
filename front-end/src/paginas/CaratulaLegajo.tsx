@@ -25,7 +25,6 @@ const PASOS = [
 
 interface Paso {
   nombre: string;
-  area: string;
   fecha: string;
   agente: string;
   /** Campo extra para "Trámite de TyA" y "Disposición" */
@@ -42,7 +41,7 @@ interface CaratulaData {
 }
 
 function pasosVacios(): Paso[] {
-  return PASOS.map((nombre) => ({ nombre, area: '', fecha: '', agente: '' }));
+  return PASOS.map((nombre) => ({ nombre, fecha: '', agente: '' }));
 }
 
 function caratulaVacia(documento: string): CaratulaData {
@@ -90,7 +89,7 @@ export default function CaratulaLegajo({ documento, nombreAfiliado, onVolver }: 
           const pasosGuardados: Paso[] = data.pasos || [];
           const pasosMerged = PASOS.map((nombre) => {
             const found = pasosGuardados.find((p: Paso) => p.nombre === nombre);
-            return found || { nombre, area: '', fecha: '', agente: '' };
+            return found || { nombre, fecha: '', agente: '' };
           });
           setCaratula({ ...data, pasos: pasosMerged });
           setExiste(true);
@@ -290,8 +289,7 @@ export default function CaratulaLegajo({ documento, nombreAfiliado, onVolver }: 
               <table className="cl-table">
                 <thead>
                   <tr>
-                    <th className="cl-th-paso">Etapa</th>
-                    <th>Área interviniente</th>
+                    <th className="cl-th-paso">Área interviniente</th>
                     <th>Fecha</th>
                     <th>Agente</th>
                   </tr>
@@ -315,14 +313,6 @@ export default function CaratulaLegajo({ documento, nombreAfiliado, onVolver }: 
                               />
                             </div>
                           )}
-                        </td>
-                        <td>
-                          <input
-                            className={`cl-input cl-input--cell${disabled ? ' cl-input--ro' : ''}`}
-                            value={paso.area}
-                            onChange={(e) => updatePaso(idx, 'area', e.target.value)}
-                            readOnly={disabled}
-                          />
                         </td>
                         <td>
                           <input
