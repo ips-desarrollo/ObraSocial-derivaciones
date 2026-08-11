@@ -30,8 +30,12 @@ export default function NavBar() {
         Afiliados
       </NavLink>
 
-      <NavLink to="/costos" className="nav-link">
-        Costos
+      <NavLink to="/legajo" className="nav-link">
+        Legajo
+      </NavLink>
+
+      <NavLink to="/derivaciones" className="nav-link">
+        Derivaciones
       </NavLink>
 
       {!soloLectura && (

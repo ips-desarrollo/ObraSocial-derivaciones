@@ -38,9 +38,8 @@
 }
 
 .cr-section--traslado .cr-section-title {
-  color: var(--warning);
-  background: rgba(217, 119, 6, 0.06);
-  border-bottom-color: var(--warning);
+  color: rgba(53, 145, 151, 0.55) background: rgba(51, 130, 161, 0.06);
+  border-bottom-color: rgba(53, 145, 151, 0.55);
 }
 
 .cr-section--alojamiento .cr-section-title {
