@@ -1254,6 +1254,163 @@ def _ensure_derivacion_tables():
 _ensure_derivacion_tables()
 
 
+# ── Carátula de legajo ──────────────────────────────────────────────────
+def _ensure_caratula_table():
+    try:
+        pg = get_pg_connection()
+        cur = pg.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS caratula_legajo (
+                id SERIAL PRIMARY KEY,
+                documento VARCHAR(20) NOT NULL UNIQUE,
+                nro_legajo VARCHAR(50),
+                fecha_inicio DATE,
+                pasos JSONB NOT NULL DEFAULT '[]'::jsonb,
+                observaciones TEXT,
+                creado_en TIMESTAMP DEFAULT NOW(),
+                actualizado_en TIMESTAMP DEFAULT NOW(),
+                creado_por VARCHAR(100),
+                actualizado_por VARCHAR(100)
+            );
+        """)
+        pg.commit()
+        cur.close()
+        pg.close()
+    except Exception as e:
+        print(f"[CARATULA TABLE] {e}")
+
+
+_ensure_caratula_table()
+
+
+# Los 16 pasos fijos de la carátula, en orden del DOCX.
+_PASOS_CARATULA = [
+    "Ingreso al sector",
+    "Pase a Auditoría",
+    "Auditoría Médica",
+    "Auditoría Oftalmológica (en caso de corresponder)",
+    "Planilla de PET (en caso de corresponder)",
+    "Envío a MEDITAR",
+    "TURNO MEDITAR/PROPIO",
+    "Notificación de Turno",
+    "Autorización excepcional de Traslado, alojamiento, o acompañantes adicionales (en caso de corresponder)",
+    "Trámite de TyA",
+    "Emisión de pasajes",
+    "Voucher de alojamiento",
+    "Pase a Disposición",
+    "Disposición",
+    "Entrega al afiliado de la documentación",
+    "Archivo",
+]
+
+
+@app.get("/caratulas/{documento}")
+def obtener_caratula(documento: str, token: str | None = Depends(oauth2_scheme)):
+    uid, _ = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    try:
+        pg = get_pg_connection()
+        cur = pg.cursor()
+        cur.execute(
+            """SELECT id, documento, nro_legajo, fecha_inicio, pasos, observaciones,
+                      creado_en, actualizado_en
+               FROM caratula_legajo WHERE documento = %s""",
+            (documento,),
+        )
+        row = cur.fetchone()
+        cur.close()
+        pg.close()
+        if row is None:
+            return None
+        return {
+            "id": row[0],
+            "documento": row[1],
+            "nro_legajo": row[2],
+            "fecha_inicio": row[3].strftime("%Y-%m-%d") if row[3] else None,
+            "pasos": row[4] if row[4] else [],
+            "observaciones": row[5],
+            "creado_en": row[6].isoformat() if row[6] else None,
+            "actualizado_en": row[7].isoformat() if row[7] else None,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/caratulas")
+def crear_caratula(datos: dict = Body(...), token: str | None = Depends(oauth2_scheme)):
+    uid, uemail = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    if _solo_lectura(_extraer_roles(token)):
+        raise HTTPException(status_code=403, detail="Sin permisos para crear carátulas")
+    try:
+        pg = get_pg_connection()
+        cur = pg.cursor()
+        cur.execute(
+            """INSERT INTO caratula_legajo
+                   (documento, nro_legajo, fecha_inicio, pasos, observaciones, creado_por)
+               VALUES (%s, %s, %s, %s::jsonb, %s, %s)
+               RETURNING id""",
+            (
+                datos["documento"],
+                _to_str(datos.get("nro_legajo")),
+                _to_fecha_sql(datos.get("fecha_inicio")),
+                json.dumps(datos.get("pasos", [])),
+                _to_str(datos.get("observaciones")),
+                uemail or str(uid),
+            ),
+        )
+        new_id = cur.fetchone()[0]
+        pg.commit()
+        cur.close()
+        pg.close()
+        return {"ok": True, "id": new_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/caratulas/{documento}")
+def actualizar_caratula(documento: str, datos: dict = Body(...), token: str | None = Depends(oauth2_scheme)):
+    uid, uemail = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    if _solo_lectura(_extraer_roles(token)):
+        raise HTTPException(status_code=403, detail="Sin permisos para editar carátulas")
+    try:
+        pg = get_pg_connection()
+        cur = pg.cursor()
+        cur.execute(
+            """UPDATE caratula_legajo SET
+                   nro_legajo = %s,
+                   fecha_inicio = %s,
+                   pasos = %s::jsonb,
+                   observaciones = %s,
+                   actualizado_en = NOW(),
+                   actualizado_por = %s
+               WHERE documento = %s""",
+            (
+                _to_str(datos.get("nro_legajo")),
+                _to_fecha_sql(datos.get("fecha_inicio")),
+                json.dumps(datos.get("pasos", [])),
+                _to_str(datos.get("observaciones")),
+                uemail or str(uid),
+                documento,
+            ),
+        )
+        afectadas = cur.rowcount
+        pg.commit()
+        cur.close()
+        pg.close()
+        if afectadas == 0:
+            raise HTTPException(status_code=404, detail="Carátula no encontrada")
+        return {"ok": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/coberturas")
 def listar_coberturas(token: str | None = Depends(oauth2_scheme)):
     uid, _ = _extraer_usuario(token)

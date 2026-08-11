@@ -1,0 +1,432 @@
+/* ─── Carátula de Legajo ─────────────────────────────────────── */
+.cl-page {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 1.25rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.cl-panel {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  background: var(--surface);
+  font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+}
+
+/* ─── Header ─────────────────────────────────────────────────── */
+.cl-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  background: #1e2e53;
+  position: relative;
+}
+
+.cl-header::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 55% 120% at 85% 50%, rgba(90, 116, 186, 0.42) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 100% at 10% 10%, rgba(68, 92, 164, 0.35) 0%, transparent 65%);
+  pointer-events: none;
+}
+
+.cl-header > * {
+  position: relative;
+  z-index: 1;
+}
+
+.cl-header-title {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: white;
+  letter-spacing: -0.01em;
+  flex: 1;
+}
+
+.cl-header-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* ─── Buttons ────────────────────────────────────────────────── */
+.cl-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: inherit;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+  border: 1px solid transparent;
+}
+
+.cl-btn--back {
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.cl-btn--back:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.cl-btn--primary {
+  background: var(--ips);
+  color: white;
+  border-color: var(--ips);
+}
+
+.cl-btn--primary:hover {
+  filter: brightness(1.1);
+}
+
+.cl-btn--success {
+  background: #16a34a;
+  color: white;
+  border-color: #16a34a;
+}
+
+.cl-btn--success:hover:not(:disabled) {
+  background: #15803d;
+}
+
+.cl-btn--success:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.cl-btn--outline {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.cl-btn--outline:hover {
+  border-color: var(--ips);
+  color: var(--ips);
+}
+
+.cl-btn--lg {
+  padding: 0.75rem 2rem;
+  font-size: 1rem;
+}
+
+/* ─── Body ───────────────────────────────────────────────────── */
+.cl-body {
+  padding: 1.25rem 1.5rem 1.75rem;
+}
+
+.cl-body--empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  padding: 3rem 1.5rem;
+}
+
+.cl-empty-text {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.cl-loading {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  padding: 2.5rem 1rem;
+  margin: 0;
+}
+
+.cl-error {
+  margin: 0;
+  padding: 0.6rem 1.25rem;
+  font-size: 0.85rem;
+  color: var(--danger);
+  background: var(--danger-bg);
+  border-bottom: 1px solid rgba(220, 38, 38, 0.18);
+}
+
+/* ─── Sections & Fields ──────────────────────────────────────── */
+.cl-section {
+  margin-bottom: 1.25rem;
+}
+
+.cl-field-row {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.cl-field-row > .cl-field {
+  flex: 1;
+}
+
+.cl-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.75rem;
+}
+
+.cl-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--label);
+  font-weight: 600;
+}
+
+.cl-input {
+  padding: 0.5rem 0.7rem;
+  font-size: 0.88rem;
+  font-family: inherit;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.15s;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.cl-input:focus:not(.cl-input--ro) {
+  border-color: var(--ips);
+}
+
+.cl-input--ro {
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  cursor: default;
+  border-color: transparent;
+}
+
+.cl-input--sm {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+  width: 90px;
+}
+
+.cl-input--cell {
+  border-color: transparent;
+  background: transparent;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.82rem;
+}
+
+.cl-input--cell:focus:not(.cl-input--ro) {
+  border-color: var(--ips);
+  background: var(--surface);
+}
+
+.cl-input--cell.cl-input--ro {
+  background: transparent;
+}
+
+.cl-textarea {
+  padding: 0.6rem 0.7rem;
+  font-size: 0.88rem;
+  font-family: inherit;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text);
+  outline: none;
+  resize: vertical;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.cl-textarea:focus:not(.cl-input--ro) {
+  border-color: var(--ips);
+}
+
+.cl-textarea.cl-input--ro {
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  cursor: default;
+  border-color: transparent;
+  resize: none;
+}
+
+/* ─── Table ──────────────────────────────────────────────────── */
+.cl-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+}
+
+.cl-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.cl-table thead tr th {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--label);
+  font-weight: 600;
+  padding: 0.65rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  white-space: nowrap;
+}
+
+.cl-th-paso {
+  min-width: 220px;
+}
+
+.cl-table tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.12s;
+}
+
+.cl-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.cl-row:hover {
+  background: var(--ips-subtle);
+}
+
+.cl-table tbody td {
+  padding: 0.45rem 0.5rem;
+  font-size: 0.84rem;
+  color: var(--text);
+  vertical-align: middle;
+}
+
+.cl-td-paso {
+  font-weight: 600;
+  font-size: 0.8rem !important;
+  color: var(--text-secondary) !important;
+  padding-left: 0.75rem !important;
+}
+
+.cl-nro-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-left: 0.5rem;
+}
+
+.cl-nro-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* ─── Modal de confirmación ──────────────────────────────────── */
+.cl-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.cl-modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 1.5rem 2rem;
+  max-width: 420px;
+  width: 100%;
+}
+
+.cl-modal-title {
+  margin: 0 0 0.75rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.cl-modal-text {
+  margin: 0 0 1.25rem;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.cl-modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+/* ─── Botón grande en el legajo ──────────────────────────────── */
+.lg-caratula-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.9rem 1.25rem;
+  margin-bottom: 1.25rem;
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: inherit;
+  color: var(--ips);
+  background: var(--ips-subtle);
+  border: 2px solid var(--ips-border);
+  border-radius: var(--r);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.lg-caratula-btn:hover {
+  background: var(--ips);
+  color: white;
+  border-color: var(--ips);
+}
+
+.lg-caratula-btn svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+/* ─── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .cl-field-row {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .cl-header {
+    flex-wrap: wrap;
+  }
+
+  .cl-th-paso {
+    min-width: 160px;
+  }
+
+  .cl-modal {
+    padding: 1.25rem;
+  }
+}
