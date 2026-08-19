@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import SelectConCarga from './SelectConCarga';
+import CaratulaDerivacion from './CaratulaDerivacion';
 import { fetchAuth, API } from '../auth';
 import './derivaciones.css';
+import './caratula-legajo.css';
 
 /* ────────────────────────────────────────────────────────────────
  * Formulario de derivación reutilizable.
@@ -28,14 +30,7 @@ export interface Derivacion {
   expediente: string | null;
   tipo_patologia: string | null;
   diagnostico: string | null;
-  tratamiento: string | null;
   fecha_turno: string | null;
-  id_tipo_patologia: number | null;
-  id_tratamiento: number | null;
-  id_diagnostico: number | null;
-  tipo_patologia_nombre: string | null;
-  tratamiento_nombre: string | null;
-  diagnostico_nombre: string | null;
   diagnostico_tratamiento: string | null;
   destino: string | null;
   id_destino: number | null;
@@ -94,11 +89,7 @@ interface FormData {
   expediente: string;
   tipo_patologia: string;
   diagnostico: string;
-  tratamiento: string;
   fecha_turno: string;
-  id_tipo_patologia: string;
-  id_tratamiento: string;
-  id_diagnostico: string;
   diagnostico_tratamiento: string;
   destino: string;
   id_destino: string;
@@ -127,11 +118,7 @@ const emptyForm: FormData = {
   expediente: '',
   tipo_patologia: '',
   diagnostico: '',
-  tratamiento: '',
   fecha_turno: '',
-  id_tipo_patologia: '',
-  id_tratamiento: '',
-  id_diagnostico: '',
   diagnostico_tratamiento: '',
   destino: '',
   id_destino: '',
@@ -236,7 +223,6 @@ function derivacionAForm(d: Derivacion): FormData {
     expediente: d.expediente || '',
     tipo_patologia: d.tipo_patologia || '',
     diagnostico: d.diagnostico || '',
-    tratamiento: d.tratamiento || '',
     fecha_turno: d.fecha_turno || '',
     destino: d.destino || '',
     id_destino: d.id_destino != null ? String(d.id_destino) : '',
@@ -251,9 +237,6 @@ function derivacionAForm(d: Derivacion): FormData {
     id_lugar_alojamiento: d.id_lugar_alojamiento != null ? String(d.id_lugar_alojamiento) : '',
     cant_noches: d.cant_noches != null ? String(d.cant_noches) : '',
     monto_alojamiento: numeroAMontoInput(d.monto_alojamiento),
-    id_tipo_patologia: d.id_tipo_patologia != null ? String(d.id_tipo_patologia) : '',
-    id_tratamiento: d.id_tratamiento != null ? String(d.id_tratamiento) : '',
-    id_diagnostico: d.id_diagnostico != null ? String(d.id_diagnostico) : '',
     diagnostico_tratamiento: d.diagnostico_tratamiento || '',
   };
 }
@@ -278,34 +261,32 @@ export default function FormularioDerivacion({ modo, mes, derivacion, onVolver, 
   );
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [verCaratula, setVerCaratula] = useState(false);
 
   const [busquedaAfiliado, setBusquedaAfiliado] = useState('');
   const [resultadosAfiliado, setResultadosAfiliado] = useState<AfiliadoBusqueda[]>([]);
 
   const [patologiasAfiliado, setPatologiasAfiliado] = useState<Patologia[]>([]);
   const [diagnosticosDisponibles, setDiagnosticosDisponibles] = useState<Diagnostico[]>([]);
+  const [todasPatologias, setTodasPatologias] = useState<Patologia[]>([]);
+  const [todosDiagnosticos, setTodosDiagnosticos] = useState<Diagnostico[]>([]);
   const [cieClave, setCieClave] = useState('');
 
   const [coberturas, setCoberturas] = useState<OpcionGuia[]>([]);
   const [tiposTraslado, setTiposTraslado] = useState<OpcionGuia[]>([]);
   const [tiposAlojamiento, setTiposAlojamiento] = useState<OpcionGuia[]>([]);
-  const [tiposPatologia, setTiposPatologia] = useState<OpcionGuia[]>([]);
-  const [tratamientos, setTratamientos] = useState<OpcionGuia[]>([]);
   const [centrosMedicos, setCentrosMedicos] = useState<OpcionGuia[]>([]);
   const [destinos, setDestinos] = useState<OpcionGuia[]>([]);
   const [lugaresAlojamiento, setLugaresAlojamiento] = useState<OpcionGuia[]>([]);
-  const [diagnosticos, setDiagnosticos] = useState<OpcionGuia[]>([]);
 
   // Carga de catálogos (guías) una sola vez.
   useEffect(() => {
     async function cargarGuias() {
       try {
-        const [resCob, resTrasl, resAloj, resTipoPat, resTrat, resCentro, resDestino, resLugar] = await Promise.all([
+        const [resCob, resTrasl, resAloj, resCentro, resDestino, resLugar] = await Promise.all([
           fetchAuth(`${API}/coberturas`),
           fetchAuth(`${API}/tipos-traslado`),
           fetchAuth(`${API}/tipos-alojamiento`),
-          fetchAuth(`${API}/tipos-patologia`),
-          fetchAuth(`${API}/tratamientos`),
           fetchAuth(`${API}/centros-medicos`),
           fetchAuth(`${API}/destinos`),
           fetchAuth(`${API}/lugares-alojamiento`),
@@ -313,8 +294,6 @@ export default function FormularioDerivacion({ modo, mes, derivacion, onVolver, 
         if (resCob.ok) setCoberturas(await resCob.json());
         if (resTrasl.ok) setTiposTraslado(await resTrasl.json());
         if (resAloj.ok) setTiposAlojamiento(await resAloj.json());
-        if (resTipoPat.ok) setTiposPatologia(await resTipoPat.json());
-        if (resTrat.ok) setTratamientos(await resTrat.json());
         if (resCentro.ok) setCentrosMedicos(await resCentro.json());
         if (resDestino.ok) setDestinos(await resDestino.json());
         if (resLugar.ok) setLugaresAlojamiento(await resLugar.json());
@@ -323,13 +302,31 @@ export default function FormularioDerivacion({ modo, mes, derivacion, onVolver, 
     cargarGuias();
   }, []);
 
+  // Carga de todas las patologías y diagnósticos (tablas completas de SQL Server).
+  useEffect(() => {
+    async function cargarCatalogosPatologia() {
+      try {
+        const [resPat, resDiag] = await Promise.all([
+          fetch(`${API}/patologias`),
+          fetch(`${API}/diagnosticos`),
+        ]);
+        if (resPat.ok) {
+          const data = await resPat.json();
+          if (Array.isArray(data)) setTodasPatologias(data);
+        }
+        if (resDiag.ok) {
+          const data = await resDiag.json();
+          if (Array.isArray(data)) setTodosDiagnosticos(data);
+        }
+      } catch {}
+    }
+    cargarCatalogosPatologia();
+  }, []);
+
   // Al abrir en editar/ver: carga diagnósticos del tipo y patologías del afiliado
   // para que se vean los valores seleccionados.
   useEffect(() => {
     if (modo === 'crear' || !derivacion) return;
-    if (derivacion.id_tipo_patologia != null) {
-      cargarDiagnosticosPatologia(String(derivacion.id_tipo_patologia));
-    }
     cargarPatologias(Number(derivacion.afiliado_documento));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -369,19 +366,6 @@ export default function FormularioDerivacion({ modo, mes, derivacion, onVolver, 
       return next;
     });
     return true;
-  }, []);
-
-  const cargarDiagnosticosPatologia = useCallback(async (idTipoPat: string) => {
-    if (!idTipoPat) {
-      setDiagnosticos([]);
-      return;
-    }
-    try {
-      const res = await fetchAuth(`${API}/diagnosticos-patologia?id_tipo_patologia=${idTipoPat}`);
-      setDiagnosticos(res.ok ? await res.json() : []);
-    } catch {
-      setDiagnosticos([]);
-    }
   }, []);
 
   async function buscarAfiliado() {
@@ -444,7 +428,9 @@ export default function FormularioDerivacion({ modo, mes, derivacion, onVolver, 
   }
 
   function seleccionarPatologia(nombre: string) {
-    const pat = patologiasAfiliado.find(p => p.nombre === nombre);
+    const pat =
+      patologiasAfiliado.find(p => p.nombre === nombre) ||
+      todasPatologias.find(p => p.nombre === nombre);
     const diagDesc = pat?.diagnostico || '';
     setForm(f => ({ ...f, tipo_patologia: nombre, diagnostico: diagDesc }));
     setDiagnosticosDisponibles([]);
@@ -506,36 +492,6 @@ export default function FormularioDerivacion({ modo, mes, derivacion, onVolver, 
     });
   }
 
-  function cambiarTipoPatologia(value: string) {
-    setForm(f => ({ ...f, id_tipo_patologia: value, id_diagnostico: '' }));
-    cargarDiagnosticosPatologia(value);
-  }
-
-  async function crearDiagnostico(nombre: string): Promise<OpcionGuia | null> {
-    const idTipoPat = form.id_tipo_patologia;
-    if (!idTipoPat) return null;
-    const res = await fetchAuth(
-      `${API}/diagnosticos-patologia?id_tipo_patologia=${idTipoPat}&nombre=${encodeURIComponent(nombre)}`,
-      { method: 'POST' },
-    );
-    if (!res.ok) return null;
-    const op: OpcionGuia = await res.json();
-    setDiagnosticos(prev =>
-      prev.some(x => x.id === op.id)
-        ? prev
-        : [...prev, op].sort((a, b) => a.nombre.localeCompare(b.nombre)),
-    );
-    return op;
-  }
-
-  async function eliminarDiagnostico(op: OpcionGuia): Promise<boolean> {
-    const res = await fetchAuth(`${API}/diagnosticos-patologia/${op.id}`, { method: 'DELETE' });
-    if (!res.ok) return false;
-    setDiagnosticos(prev => prev.filter(x => x.id !== op.id));
-    setForm(f => (f.id_diagnostico === String(op.id) ? { ...f, id_diagnostico: '' } : f));
-    return true;
-  }
-
   async function guardar() {
     if (!form.afiliado_documento) {
       setFormError('Debe seleccionar un afiliado');
@@ -561,11 +517,7 @@ export default function FormularioDerivacion({ modo, mes, derivacion, onVolver, 
       expediente: form.expediente || null,
       tipo_patologia: form.tipo_patologia || null,
       diagnostico: form.diagnostico || null,
-      tratamiento: form.tratamiento || null,
       fecha_turno: form.fecha_turno || null,
-      id_tipo_patologia: form.id_tipo_patologia ? parseInt(form.id_tipo_patologia) : null,
-      id_tratamiento: form.id_tratamiento ? parseInt(form.id_tratamiento) : null,
-      id_diagnostico: form.id_diagnostico ? parseInt(form.id_diagnostico) : null,
       diagnostico_tratamiento: form.diagnostico_tratamiento || null,
       destino: form.destino || null,
       id_destino: form.id_destino ? parseInt(form.id_destino) : null,
@@ -616,6 +568,17 @@ export default function FormularioDerivacion({ modo, mes, derivacion, onVolver, 
     : modo === 'editar' ? 'Editar Derivación'
     : 'Detalle de Derivación';
 
+  /* ── Vista: Carátula de la derivación ── */
+  if (verCaratula && derivacion?.id) {
+    return (
+      <CaratulaDerivacion
+        derivacionId={derivacion.id}
+        nombreAfiliado={form.afiliado_nombre || '-'}
+        onVolver={() => setVerCaratula(false)}
+      />
+    );
+  }
+
   return (
     <div className="dv-page">
       <div className="dv-toolbar">
@@ -629,149 +592,100 @@ export default function FormularioDerivacion({ modo, mes, derivacion, onVolver, 
       </div>
 
       <div className="dv-panel">
-        <div className="dv-header dv-header--search">
-          {soloVista ? (
-            <span className="dv-header-afiliado-name">
-              {form.afiliado_nombre || '-'}
-              {form.afiliado_documento ? ` — DNI ${form.afiliado_documento}` : ''}
-            </span>
-          ) : (
-            <>
-              <div className="dv-header-search-wrap dv-search-wrap">
-                <div className="dv-search-row">
-                  <input
-                    className="dv-header-search-input"
-                    value={busquedaAfiliado}
-                    onChange={(e) => setBusquedaAfiliado(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') buscarAfiliado(); }}
-                    placeholder="Buscar afiliado por nombre o DNI..."
-                  />
-                  <button className="dv-btn dv-btn--search" onClick={() => buscarAfiliado()} type="button">
-                    Buscar
-                  </button>
-                </div>
-                {resultadosAfiliado.length > 0 && (
-                  <div className="dv-search-results">
-                    {resultadosAfiliado.map((af) => (
-                      <div
-                        key={af.documento}
-                        className="dv-search-item"
-                        onClick={() => seleccionarAfiliado(af)}
-                      >
-                        <span className="dv-search-item-name">{af.nombre_completo}</span>
-                        <span className="dv-search-item-dni">DNI {af.documento}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+        {/* ── Header grande: búsqueda + nombre centrado + datos afiliado + patología ── */}
+        <div className="dv-header dv-header--expanded">
+          {/* Búsqueda (solo en crear/editar) */}
+          {!soloVista && (
+            <div className="dv-header-search-wrap dv-search-wrap">
+              <div className="dv-search-row">
+                <input
+                  className="dv-header-search-input"
+                  value={busquedaAfiliado}
+                  onChange={(e) => setBusquedaAfiliado(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') buscarAfiliado(); }}
+                  placeholder="Buscar afiliado por nombre o DNI..."
+                />
+                <button className="dv-btn dv-btn--search" onClick={() => buscarAfiliado()} type="button">
+                  Buscar
+                </button>
               </div>
-              {form.afiliado_nombre && (
-                <span className="dv-header-afiliado-name">{form.afiliado_nombre}</span>
+              {resultadosAfiliado.length > 0 && (
+                <div className="dv-search-results">
+                  {resultadosAfiliado.map((af) => (
+                    <div
+                      key={af.documento}
+                      className="dv-search-item"
+                      onClick={() => seleccionarAfiliado(af)}
+                    >
+                      <span className="dv-search-item-name">{af.nombre_completo}</span>
+                      <span className="dv-search-item-dni">DNI {af.documento}</span>
+                    </div>
+                  ))}
+                </div>
               )}
-            </>
+            </div>
+          )}
+
+          {/* Nombre centrado */}
+          {(form.afiliado_nombre || soloVista) && (
+            <div className="dv-header-nombre-center">
+              <span className="dv-header-afiliado-name">
+                {form.afiliado_nombre || '-'}
+                {form.afiliado_documento ? ` — DNI ${form.afiliado_documento}` : ''}
+              </span>
+            </div>
+          )}
+
+          {/* Datos del afiliado + Patología cargada en el header */}
+          {form.afiliado_documento && (
+            <div className="dv-header-info">
+              {/* Datos del Afiliado */}
+              <div className="dv-header-info-block">
+                <p className="dv-header-info-title">Datos del Afiliado</p>
+                <div className="dv-header-info-grid">
+                  <div className="dv-header-info-field">
+                    <span className="dv-header-info-label">DNI</span>
+                    <span className="dv-header-info-value">{form.afiliado_documento ?? '-'}</span>
+                  </div>
+                  <div className="dv-header-info-field">
+                    <span className="dv-header-info-label">Credencial</span>
+                    <span className="dv-header-info-value">{form.afiliado_credencial || '-'}</span>
+                  </div>
+                  <div className="dv-header-info-field">
+                    <span className="dv-header-info-label">Edad</span>
+                    <span className="dv-header-info-value">{form.afiliado_edad ?? '-'}</span>
+                  </div>
+                  <div className="dv-header-info-field">
+                    <span className="dv-header-info-label">Sexo</span>
+                    <span className="dv-header-info-value">{form.afiliado_sexo || '-'}</span>
+                  </div>
+                </div>
+              </div>
+
+            </div>
           )}
         </div>
 
-        <div className="dv-form-body">
-          {/* ── Columna izquierda ── */}
-          <div className="dv-form-col">
-            {/* Afiliado */}
-            <div className="dv-form-group">
-              <p className="dv-form-section">Datos del Afiliado</p>
+        {/* ── Body: una sola columna ── */}
+        <div className="dv-form-body dv-form-body--single">
+            {/* Botón Carátula de Derivación (solo si la derivación ya existe) */}
+            {derivacion?.id && (
+              <button
+                className="lg-caratula-btn"
+                onClick={() => setVerCaratula(true)}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="16" y1="13" x2="8" y2="13"/>
+                  <line x1="16" y1="17" x2="8" y2="17"/>
+                  <polyline points="10 9 9 9 8 9"/>
+                </svg>
+                Carátula de Derivación
+              </button>
+            )}
 
-              <div className="dv-form-row-afiliado">
-                <div className="dv-form-field">
-                  <label className="dv-form-label">DNI</label>
-                  <input className="dv-form-input dv-form-input--ro" value={form.afiliado_documento ?? ''} readOnly />
-                </div>
-                <div className="dv-form-field">
-                  <label className="dv-form-label">Credencial</label>
-                  <input className="dv-form-input dv-form-input--ro" value={form.afiliado_credencial} readOnly />
-                </div>
-                <div className="dv-form-field">
-                  <label className="dv-form-label">Edad</label>
-                  <input className="dv-form-input dv-form-input--ro" value={form.afiliado_edad ?? ''} readOnly />
-                </div>
-                <div className="dv-form-field">
-                  <label className="dv-form-label">Sexo</label>
-                  <input className="dv-form-input dv-form-input--ro" value={form.afiliado_sexo} readOnly />
-                </div>
-              </div>
-            </div>
-
-            {/* Patología cargada (read-only) */}
-            <div className="dv-form-group">
-              <p className="dv-form-section">Patología cargada</p>
-
-              <div className="dv-form-field">
-                <label className="dv-form-label">Patología</label>
-                <input className="dv-form-input dv-form-input--ro" value={form.tipo_patologia} readOnly />
-              </div>
-
-              <div className="dv-form-field">
-                <label className="dv-form-label">Diagnóstico</label>
-                <textarea
-                  className="dv-form-textarea dv-form-input--ro"
-                  value={form.diagnostico}
-                  readOnly
-                />
-              </div>
-            </div>
-
-            {/* Tratamiento */}
-            <div className="dv-form-group dv-form-group--grow">
-              <p className="dv-form-section">Tratamiento</p>
-
-              <div className="dv-form-row">
-                <SelectConCarga
-                  label="Tipo de patología"
-                  value={form.id_tipo_patologia}
-                  opciones={tiposPatologia}
-                  onChange={(v) => cambiarTipoPatologia(v)}
-                  onCrear={(n) => crearOpcion('tipos-patologia', setTiposPatologia, n)}
-                  onEliminar={(o) => eliminarOpcion('tipos-patologia', setTiposPatologia, o)}
-                  disabled={soloVista || soloLectura}
-                />
-                <div className="dv-form-field">
-                  <label className="dv-form-label">Fecha de turno</label>
-                  <input
-                    className={`dv-form-input${roCls}`}
-                    type="date"
-                    value={form.fecha_turno}
-                    onChange={(e) => updateForm('fecha_turno', e.target.value)}
-                    readOnly={soloVista}
-                  />
-                </div>
-              </div>
-
-              <SelectConCarga
-                label="Diagnóstico"
-                value={form.id_diagnostico}
-                opciones={diagnosticos}
-                onChange={(v) => updateForm('id_diagnostico', v)}
-                onCrear={crearDiagnostico}
-                onEliminar={eliminarDiagnostico}
-                disabled={soloVista || soloLectura || !form.id_tipo_patologia}
-              />
-              {!soloVista && !form.id_tipo_patologia && (
-                <span className="dv-form-hint">Elegí primero un tipo de patología para cargar el diagnóstico.</span>
-              )}
-
-              <SelectConCarga
-                label="Tratamiento"
-                value={form.id_tratamiento}
-                opciones={tratamientos}
-                onChange={(v) => updateForm('id_tratamiento', v)}
-                onCrear={(n) => crearOpcion('tratamientos', setTratamientos, n)}
-                onEliminar={(o) => eliminarOpcion('tratamientos', setTratamientos, o)}
-                disabled={soloVista || soloLectura}
-              />
-            </div>
-          </div>
-
-          {/* ── Columna derecha ── */}
-          <div className="dv-form-col">
-            {/* Derivación */}
+            {/* Datos de la Derivación */}
             <div className="dv-form-group">
               <p className="dv-form-section">Datos de la Derivación</p>
 
@@ -825,6 +739,63 @@ export default function FormularioDerivacion({ modo, mes, derivacion, onVolver, 
               </div>
             </div>
 
+            {/* Patología cargada (de SQL Server) */}
+            <div className="dv-form-group">
+              <p className="dv-form-section">Patología cargada</p>
+
+              <div className="dv-form-patologia">
+                {/* Selector de patología: toda la tabla PATOLOGIAS de SQL Server */}
+                {!soloVista && (
+                  <div className="dv-form-field dv-fp-select">
+                    <label className="dv-form-label">Patología</label>
+                    <select
+                      className="dv-form-input"
+                      value={form.tipo_patologia}
+                      onChange={(e) => seleccionarPatologia(e.target.value)}
+                    >
+                      <option value="">— Seleccionar —</option>
+                      {todasPatologias.map((p) => (
+                        <option key={p.pat_id} value={p.nombre}>{p.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <div className="dv-form-field dv-fp-diag">
+                  <label className="dv-form-label">Diagnóstico</label>
+                  {todosDiagnosticos.length > 0 && !soloVista ? (
+                    <select
+                      className="dv-form-input"
+                      value={form.diagnostico}
+                      onChange={(e) => updateForm('diagnostico', e.target.value)}
+                    >
+                      <option value="">— Seleccionar —</option>
+                      {todosDiagnosticos.map((d) => (
+                        <option key={d.codigo} value={d.descripcion}>{d.codigo} – {d.descripcion}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      className={`dv-form-input${roCls}`}
+                      value={form.diagnostico}
+                      onChange={(e) => updateForm('diagnostico', e.target.value)}
+                      readOnly={soloVista}
+                      placeholder="Diagnóstico"
+                    />
+                  )}
+                </div>
+                <div className="dv-form-field dv-fp-fecha">
+                  <label className="dv-form-label">Fecha de turno</label>
+                  <input
+                    className={`dv-form-input${roCls}`}
+                    type="date"
+                    value={form.fecha_turno}
+                    onChange={(e) => updateForm('fecha_turno', e.target.value)}
+                    readOnly={soloVista}
+                  />
+                </div>
+              </div>
+            </div>
+
             {/* Traslado */}
             <div className="dv-form-group">
               <p className="dv-form-section">Traslado</p>
@@ -851,7 +822,7 @@ export default function FormularioDerivacion({ modo, mes, derivacion, onVolver, 
             </div>
 
             {/* Alojamiento */}
-            <div className="dv-form-group dv-form-group--grow">
+            <div className="dv-form-group">
               <p className="dv-form-section">Alojamiento</p>
 
               <div className="dv-form-row-3">
@@ -895,7 +866,6 @@ export default function FormularioDerivacion({ modo, mes, derivacion, onVolver, 
                 </div>
               </div>
             </div>
-          </div>
 
           {/* ── Monto total (ancho completo) ── */}
           <div className="dv-form-total dv-form-footer">

@@ -178,6 +178,93 @@
   gap: 0.75rem;
 }
 
+/* ─── Header expandido (formulario) ─────────────────────────── */
+.dv-header--expanded {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+  padding: 1.5rem 1.75rem;
+}
+
+.dv-header-nombre-center {
+  text-align: center;
+  position: relative;
+  z-index: 1;
+  padding: 0.25rem 0;
+}
+
+.dv-header-nombre-center .dv-header-afiliado-name {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+/* Info blocks dentro del header (afiliado + patología) */
+.dv-header-info {
+  display: flex;
+  gap: 0.85rem;
+  position: relative;
+  z-index: 1;
+}
+
+.dv-header-info-block {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--r-sm);
+  padding: 0.65rem 0.85rem;
+}
+
+.dv-header-info-title {
+  margin: 0 0 0.45rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.55);
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.dv-header-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 0.5fr 0.9fr;
+  gap: 0.5rem;
+}
+
+.dv-header-info-grid--pat {
+  grid-template-columns: 1fr 2fr;
+}
+
+.dv-header-info-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.dv-header-info-label {
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.dv-header-info-value {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ─── Body single column ────────────────────────────────────── */
+.dv-form-body--single {
+  grid-template-columns: 1fr !important;
+  max-width: 850px;
+  margin: 0 auto;
+}
+
 .dv-header-search-wrap {
   flex: 1;
   min-width: 200px;
@@ -449,12 +536,11 @@
 
 .dv-form-derivacion {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 0.6rem;
   grid-template-areas:
-    "disp disp fecha fecha monto monto"
-    "exp exp exp dest dest dest"
-    "centro centro centro cob cob cob";
+    "disp fecha monto exp"
+    "dest centro cob .";
 }
 
 .dv-df-disp   { grid-area: disp; }
@@ -464,6 +550,23 @@
 .dv-df-dest   { grid-area: dest; }
 .dv-df-centro { grid-area: centro; }
 .dv-df-cob    { grid-area: cob; }
+
+/* Grilla patología cargada */
+.dv-form-patologia {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.6rem;
+  grid-template-areas:
+    "select select fecha"
+    "diag diag diag";
+}
+
+.dv-fp-select  { grid-area: select; }
+.dv-fp-pat     { grid-area: pat; }
+.dv-fp-diag    { grid-area: diag; }
+.dv-fp-fecha   { grid-area: fecha; }
+.dv-fp-tipopat { grid-area: tipopat; }
+.dv-fp-diagpat { grid-area: diagpat; }
 
 .dv-form-row-3 {
   display: grid;
@@ -866,6 +969,10 @@
     padding: 1rem;
   }
 
+  .dv-form-body--single {
+    max-width: 100%;
+  }
+
   .dv-form-footer {
     grid-column: 1;
   }
@@ -887,7 +994,7 @@
     grid-template-columns: 1fr 1fr;
     grid-template-areas:
       "disp fecha"
-      "exp monto"
+      "monto exp"
       "dest dest"
       "centro centro"
       "cob cob";
@@ -899,6 +1006,18 @@
 
   .dv-modal {
     max-width: 100%;
+  }
+
+  .dv-header-info {
+    flex-direction: column;
+  }
+
+  .dv-header-info-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .dv-header--expanded {
+    padding: 1rem;
   }
 }
 

@@ -32,27 +32,6 @@ CREATE TABLE IF NOT EXISTS lugar_alojamiento (
     activo BOOLEAN NOT NULL DEFAULT TRUE
 );
 
-CREATE TABLE IF NOT EXISTS tipo_patologia (
-    id SERIAL PRIMARY KEY,
-    tipo_pat VARCHAR(100) NOT NULL UNIQUE,
-    activo BOOLEAN NOT NULL DEFAULT TRUE
-);
-
-CREATE TABLE IF NOT EXISTS tratamiento (
-    id SERIAL PRIMARY KEY,
-    tratamiento VARCHAR(200) NOT NULL UNIQUE,
-    activo BOOLEAN NOT NULL DEFAULT TRUE
-);
-
--- Diagnósticos por tipo de patología: un tipo_patologia tiene 1..N diagnósticos.
-CREATE TABLE IF NOT EXISTS diagnostico (
-    id SERIAL PRIMARY KEY,
-    id_tipo_patologia INTEGER NOT NULL REFERENCES tipo_patologia(id),
-    nombre VARCHAR(200) NOT NULL,
-    activo BOOLEAN NOT NULL DEFAULT TRUE,
-    UNIQUE (id_tipo_patologia, nombre)
-);
-
 CREATE TABLE IF NOT EXISTS destino (
     id SERIAL PRIMARY KEY,
     nombre VARCHAR(200) NOT NULL UNIQUE,
@@ -73,11 +52,7 @@ CREATE TABLE IF NOT EXISTS derivacion (
     afiliado_sexo VARCHAR(20),
     tipo_patologia VARCHAR(100),
     diagnostico TEXT,
-    tratamiento TEXT,
     fecha_turno DATE,
-    id_tipo_patologia INTEGER REFERENCES tipo_patologia(id),
-    id_tratamiento INTEGER REFERENCES tratamiento(id),
-    id_diagnostico INTEGER REFERENCES diagnostico(id),
     diagnostico_tratamiento TEXT,
     creado_en TIMESTAMP DEFAULT NOW(),
     creado_por VARCHAR(100)

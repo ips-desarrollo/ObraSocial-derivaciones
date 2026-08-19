@@ -1074,11 +1074,7 @@ class DerivacionRequest(BaseModel):
     expediente: str | None = None
     tipo_patologia: str | None = None
     diagnostico: str | None = None
-    tratamiento: str | None = None
     fecha_turno: str | None = None
-    id_tipo_patologia: int | None = None
-    id_tratamiento: int | None = None
-    id_diagnostico: int | None = None
     diagnostico_tratamiento: str | None = None
     destino: str | None = None
     id_destino: int | None = None
@@ -1127,23 +1123,6 @@ def _ensure_derivacion_tables():
                 nombre VARCHAR(200) NOT NULL UNIQUE,
                 activo BOOLEAN NOT NULL DEFAULT TRUE
             );
-            CREATE TABLE IF NOT EXISTS tipo_patologia (
-                id SERIAL PRIMARY KEY,
-                tipo_pat VARCHAR(100) NOT NULL UNIQUE,
-                activo BOOLEAN NOT NULL DEFAULT TRUE
-            );
-            CREATE TABLE IF NOT EXISTS tratamiento (
-                id SERIAL PRIMARY KEY,
-                tratamiento VARCHAR(200) NOT NULL UNIQUE,
-                activo BOOLEAN NOT NULL DEFAULT TRUE
-            );
-            CREATE TABLE IF NOT EXISTS diagnostico (
-                id SERIAL PRIMARY KEY,
-                id_tipo_patologia INTEGER NOT NULL REFERENCES tipo_patologia(id),
-                nombre VARCHAR(200) NOT NULL,
-                activo BOOLEAN NOT NULL DEFAULT TRUE,
-                UNIQUE (id_tipo_patologia, nombre)
-            );
             CREATE TABLE IF NOT EXISTS derivacion (
                 id_derivacion SERIAL PRIMARY KEY,
                 mes VARCHAR(20),
@@ -1157,11 +1136,7 @@ def _ensure_derivacion_tables():
                 afiliado_sexo VARCHAR(20),
                 tipo_patologia VARCHAR(100),
                 diagnostico TEXT,
-                tratamiento TEXT,
                 fecha_turno DATE,
-                id_tipo_patologia INTEGER REFERENCES tipo_patologia(id),
-                id_tratamiento INTEGER REFERENCES tratamiento(id),
-                id_diagnostico INTEGER REFERENCES diagnostico(id),
                 diagnostico_tratamiento TEXT,
                 creado_en TIMESTAMP DEFAULT NOW(),
                 creado_por VARCHAR(100)
@@ -1193,9 +1168,6 @@ def _ensure_derivacion_tables():
         """)
         pg.commit()
         for col, defn in [
-            ("id_tipo_patologia", "INTEGER REFERENCES tipo_patologia(id)"),
-            ("id_tratamiento", "INTEGER REFERENCES tratamiento(id)"),
-            ("id_diagnostico", "INTEGER REFERENCES diagnostico(id)"),
             ("diagnostico_tratamiento", "TEXT"),
         ]:
             try:
@@ -1215,7 +1187,7 @@ def _ensure_derivacion_tables():
         # Borrado lógico de las tablas guía: se agrega "activo" a las BD ya creadas
         for tabla in (
             "cobertura", "tipo_traslado", "tipo_alojamiento", "centro_medico",
-            "lugar_alojamiento", "tipo_patologia", "tratamiento", "destino",
+            "lugar_alojamiento", "destino",
         ):
             try:
                 cur.execute(f"ALTER TABLE {tabla} ADD COLUMN IF NOT EXISTS activo BOOLEAN NOT NULL DEFAULT TRUE")
@@ -1254,15 +1226,31 @@ def _ensure_derivacion_tables():
 _ensure_derivacion_tables()
 
 
-# ── Carátula de legajo ──────────────────────────────────────────────────
+# ── Carátula de derivación ───────────────────────────────────────────────
 def _ensure_caratula_table():
     try:
         pg = get_pg_connection()
         cur = pg.cursor()
+        # Tabla legacy (no se borra por si hay datos)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS caratula_legajo (
                 id SERIAL PRIMARY KEY,
                 documento VARCHAR(20) NOT NULL UNIQUE,
+                nro_legajo VARCHAR(50),
+                fecha_inicio DATE,
+                pasos JSONB NOT NULL DEFAULT '[]'::jsonb,
+                observaciones TEXT,
+                creado_en TIMESTAMP DEFAULT NOW(),
+                actualizado_en TIMESTAMP DEFAULT NOW(),
+                creado_por VARCHAR(100),
+                actualizado_por VARCHAR(100)
+            );
+        """)
+        # Nueva tabla: una carátula por derivación
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS caratula_derivacion (
+                id SERIAL PRIMARY KEY,
+                derivacion_id INTEGER NOT NULL UNIQUE REFERENCES derivacion(id_derivacion) ON DELETE CASCADE,
                 nro_legajo VARCHAR(50),
                 fecha_inicio DATE,
                 pasos JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -1304,8 +1292,8 @@ _PASOS_CARATULA = [
 ]
 
 
-@app.get("/caratulas/{documento}")
-def obtener_caratula(documento: str, token: str | None = Depends(oauth2_scheme)):
+@app.get("/caratulas/derivacion/{derivacion_id}")
+def obtener_caratula_derivacion(derivacion_id: int, token: str | None = Depends(oauth2_scheme)):
     uid, _ = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
@@ -1313,10 +1301,10 @@ def obtener_caratula(documento: str, token: str | None = Depends(oauth2_scheme))
         pg = get_pg_connection()
         cur = pg.cursor()
         cur.execute(
-            """SELECT id, documento, nro_legajo, fecha_inicio, pasos, observaciones,
+            """SELECT id, derivacion_id, nro_legajo, fecha_inicio, pasos, observaciones,
                       creado_en, actualizado_en
-               FROM caratula_legajo WHERE documento = %s""",
-            (documento,),
+               FROM caratula_derivacion WHERE derivacion_id = %s""",
+            (derivacion_id,),
         )
         row = cur.fetchone()
         cur.close()
@@ -1325,7 +1313,7 @@ def obtener_caratula(documento: str, token: str | None = Depends(oauth2_scheme))
             return None
         return {
             "id": row[0],
-            "documento": row[1],
+            "derivacion_id": row[1],
             "nro_legajo": row[2],
             "fecha_inicio": row[3].strftime("%Y-%m-%d") if row[3] else None,
             "pasos": row[4] if row[4] else [],
@@ -1337,8 +1325,8 @@ def obtener_caratula(documento: str, token: str | None = Depends(oauth2_scheme))
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/caratulas")
-def crear_caratula(datos: dict = Body(...), token: str | None = Depends(oauth2_scheme)):
+@app.post("/caratulas/derivacion")
+def crear_caratula_derivacion(datos: dict = Body(...), token: str | None = Depends(oauth2_scheme)):
     uid, uemail = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
@@ -1348,12 +1336,12 @@ def crear_caratula(datos: dict = Body(...), token: str | None = Depends(oauth2_s
         pg = get_pg_connection()
         cur = pg.cursor()
         cur.execute(
-            """INSERT INTO caratula_legajo
-                   (documento, nro_legajo, fecha_inicio, pasos, observaciones, creado_por)
+            """INSERT INTO caratula_derivacion
+                   (derivacion_id, nro_legajo, fecha_inicio, pasos, observaciones, creado_por)
                VALUES (%s, %s, %s, %s::jsonb, %s, %s)
                RETURNING id""",
             (
-                datos["documento"],
+                datos["derivacion_id"],
                 _to_str(datos.get("nro_legajo")),
                 _to_fecha_sql(datos.get("fecha_inicio")),
                 json.dumps(datos.get("pasos", [])),
@@ -1370,8 +1358,8 @@ def crear_caratula(datos: dict = Body(...), token: str | None = Depends(oauth2_s
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.put("/caratulas/{documento}")
-def actualizar_caratula(documento: str, datos: dict = Body(...), token: str | None = Depends(oauth2_scheme)):
+@app.put("/caratulas/derivacion/{derivacion_id}")
+def actualizar_caratula_derivacion(derivacion_id: int, datos: dict = Body(...), token: str | None = Depends(oauth2_scheme)):
     uid, uemail = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
@@ -1381,21 +1369,21 @@ def actualizar_caratula(documento: str, datos: dict = Body(...), token: str | No
         pg = get_pg_connection()
         cur = pg.cursor()
         cur.execute(
-            """UPDATE caratula_legajo SET
+            """UPDATE caratula_derivacion SET
                    nro_legajo = %s,
                    fecha_inicio = %s,
                    pasos = %s::jsonb,
                    observaciones = %s,
                    actualizado_en = NOW(),
                    actualizado_por = %s
-               WHERE documento = %s""",
+               WHERE derivacion_id = %s""",
             (
                 _to_str(datos.get("nro_legajo")),
                 _to_fecha_sql(datos.get("fecha_inicio")),
                 json.dumps(datos.get("pasos", [])),
                 _to_str(datos.get("observaciones")),
                 uemail or str(uid),
-                documento,
+                derivacion_id,
             ),
         )
         afectadas = cur.rowcount
@@ -1531,85 +1519,6 @@ def crear_tipo_alojamiento(nombre: str, token: str | None = Depends(oauth2_schem
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/tipos-patologia")
-def listar_tipos_patologia(token: str | None = Depends(oauth2_scheme)):
-    uid, _ = _extraer_usuario(token)
-    if uid is None:
-        raise HTTPException(status_code=401, detail="No autenticado")
-    try:
-        pg = get_pg_connection()
-        cur = pg.cursor()
-        cur.execute("SELECT id, tipo_pat FROM tipo_patologia WHERE activo = TRUE ORDER BY tipo_pat")
-        rows = cur.fetchall()
-        cur.close()
-        pg.close()
-        return [{"id": r[0], "nombre": r[1]} for r in rows]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/tipos-patologia")
-def crear_tipo_patologia(nombre: str, token: str | None = Depends(oauth2_scheme)):
-    uid, _ = _extraer_usuario(token)
-    if uid is None:
-        raise HTTPException(status_code=401, detail="No autenticado")
-    if _solo_lectura(_extraer_roles(token)):
-        raise HTTPException(status_code=403, detail="Sin permisos")
-    try:
-        pg = get_pg_connection()
-        cur = pg.cursor()
-        cur.execute("INSERT INTO tipo_patologia (tipo_pat) VALUES (%s) ON CONFLICT (tipo_pat) DO UPDATE SET activo = TRUE RETURNING id", (nombre,))
-        row = cur.fetchone()
-        if row is None:
-            cur.execute("SELECT id FROM tipo_patologia WHERE tipo_pat = %s", (nombre,))
-            row = cur.fetchone()
-        pg.commit()
-        cur.close()
-        pg.close()
-        return {"id": row[0], "nombre": nombre}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/tratamientos")
-def listar_tratamientos(token: str | None = Depends(oauth2_scheme)):
-    uid, _ = _extraer_usuario(token)
-    if uid is None:
-        raise HTTPException(status_code=401, detail="No autenticado")
-    try:
-        pg = get_pg_connection()
-        cur = pg.cursor()
-        cur.execute("SELECT id, tratamiento FROM tratamiento WHERE activo = TRUE ORDER BY tratamiento")
-        rows = cur.fetchall()
-        cur.close()
-        pg.close()
-        return [{"id": r[0], "nombre": r[1]} for r in rows]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/tratamientos")
-def crear_tratamiento(nombre: str, token: str | None = Depends(oauth2_scheme)):
-    uid, _ = _extraer_usuario(token)
-    if uid is None:
-        raise HTTPException(status_code=401, detail="No autenticado")
-    if _solo_lectura(_extraer_roles(token)):
-        raise HTTPException(status_code=403, detail="Sin permisos")
-    try:
-        pg = get_pg_connection()
-        cur = pg.cursor()
-        cur.execute("INSERT INTO tratamiento (tratamiento) VALUES (%s) ON CONFLICT (tratamiento) DO UPDATE SET activo = TRUE RETURNING id", (nombre,))
-        row = cur.fetchone()
-        if row is None:
-            cur.execute("SELECT id FROM tratamiento WHERE tratamiento = %s", (nombre,))
-            row = cur.fetchone()
-        pg.commit()
-        cur.close()
-        pg.close()
-        return {"id": row[0], "nombre": nombre}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.get("/centros-medicos")
 def listar_centros_medicos(token: str | None = Depends(oauth2_scheme)):
@@ -1736,8 +1645,6 @@ _CATALOGOS = {
     "coberturas": "cobertura",
     "tipos-traslado": "tipo_traslado",
     "tipos-alojamiento": "tipo_alojamiento",
-    "tipos-patologia": "tipo_patologia",
-    "tratamientos": "tratamiento",
     "centros-medicos": "centro_medico",
     "destinos": "destino",
     "lugares-alojamiento": "lugar_alojamiento",
@@ -1784,15 +1691,6 @@ def eliminar_tipo_alojamiento(id_opcion: int, token: str | None = Depends(oauth2
     return _baja_opcion_catalogo("tipo_alojamiento", id_opcion, token)
 
 
-@app.delete("/tipos-patologia/{id_opcion}")
-def eliminar_tipo_patologia(id_opcion: int, token: str | None = Depends(oauth2_scheme)):
-    return _baja_opcion_catalogo("tipo_patologia", id_opcion, token)
-
-
-@app.delete("/tratamientos/{id_opcion}")
-def eliminar_tratamiento(id_opcion: int, token: str | None = Depends(oauth2_scheme)):
-    return _baja_opcion_catalogo("tratamiento", id_opcion, token)
-
 
 @app.delete("/centros-medicos/{id_opcion}")
 def eliminar_centro_medico(id_opcion: int, token: str | None = Depends(oauth2_scheme)):
@@ -1809,63 +1707,12 @@ def eliminar_lugar_alojamiento(id_opcion: int, token: str | None = Depends(oauth
     return _baja_opcion_catalogo("lugar_alojamiento", id_opcion, token)
 
 
-# ── Diagnósticos por tipo de patología ──
-# Cada diagnóstico pertenece a un tipo de patología (1 tipo -> N diagnósticos).
-@app.get("/diagnosticos-patologia")
-def listar_diagnosticos_patologia(id_tipo_patologia: int, token: str | None = Depends(oauth2_scheme)):
-    uid, _ = _extraer_usuario(token)
-    if uid is None:
-        raise HTTPException(status_code=401, detail="No autenticado")
-    try:
-        pg = get_pg_connection()
-        cur = pg.cursor()
-        cur.execute(
-            "SELECT id, nombre FROM diagnostico WHERE id_tipo_patologia = %s AND activo = TRUE ORDER BY nombre",
-            (id_tipo_patologia,),
-        )
-        rows = cur.fetchall()
-        cur.close()
-        pg.close()
-        return [{"id": r[0], "nombre": r[1]} for r in rows]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/diagnosticos-patologia")
-def crear_diagnostico_patologia(id_tipo_patologia: int, nombre: str, token: str | None = Depends(oauth2_scheme)):
-    uid, _ = _extraer_usuario(token)
-    if uid is None:
-        raise HTTPException(status_code=401, detail="No autenticado")
-    if _solo_lectura(_extraer_roles(token)):
-        raise HTTPException(status_code=403, detail="Sin permisos")
-    try:
-        pg = get_pg_connection()
-        cur = pg.cursor()
-        cur.execute(
-            """INSERT INTO diagnostico (id_tipo_patologia, nombre) VALUES (%s, %s)
-               ON CONFLICT (id_tipo_patologia, nombre) DO UPDATE SET activo = TRUE
-               RETURNING id""",
-            (id_tipo_patologia, nombre),
-        )
-        row = cur.fetchone()
-        pg.commit()
-        cur.close()
-        pg.close()
-        return {"id": row[0], "nombre": nombre}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.delete("/diagnosticos-patologia/{id_opcion}")
-def eliminar_diagnostico_patologia(id_opcion: int, token: str | None = Depends(oauth2_scheme)):
-    return _baja_opcion_catalogo("diagnostico", id_opcion, token)
-
 
 _DERIVACION_SELECT = """
     SELECT d.id_derivacion, d.mes, d.nro_disposicion, d.fecha,
            d.afiliado_documento, d.afiliado_nombre, d.afiliado_credencial,
            d.afiliado_edad, d.afiliado_sexo, d.expediente,
-           d.tipo_patologia, d.diagnostico, d.tratamiento, d.fecha_turno,
+           d.tipo_patologia, d.diagnostico, d.fecha_turno,
            d.creado_en,
            COALESCE(de.nombre, dp.destino), dp.id_cobertura, c.nombre,
            COALESCE(cm.nombre, dp.centro_medico), dp.monto_prestacion,
@@ -1874,12 +1721,9 @@ _DERIVACION_SELECT = """
            da.id_cobertura_alojamiento, ca.nombre,
            da.id_tipo_alojamiento, ta.nombre,
            COALESCE(la.nombre, da.lugar_alojamiento), da.cant_noches, da.monto_alojamiento,
-           d.id_tipo_patologia, tp.tipo_pat,
-           d.id_tratamiento, tr.tratamiento,
            d.diagnostico_tratamiento,
            dp.id_centro_medico, da.id_lugar_alojamiento,
-           dp.id_destino,
-           d.id_diagnostico, dg.nombre
+           dp.id_destino
     FROM derivacion d
     LEFT JOIN derivacion_prestacion dp ON dp.id_derivacion = d.id_derivacion
     LEFT JOIN cobertura c ON c.id = dp.id_cobertura
@@ -1891,9 +1735,6 @@ _DERIVACION_SELECT = """
     LEFT JOIN cobertura ca ON ca.id = da.id_cobertura_alojamiento
     LEFT JOIN tipo_alojamiento ta ON ta.id = da.id_tipo_alojamiento
     LEFT JOIN lugar_alojamiento la ON la.id = da.id_lugar_alojamiento
-    LEFT JOIN tipo_patologia tp ON tp.id = d.id_tipo_patologia
-    LEFT JOIN tratamiento tr ON tr.id = d.id_tratamiento
-    LEFT JOIN diagnostico dg ON dg.id = d.id_diagnostico
 """
 
 
@@ -1911,35 +1752,28 @@ def _row_to_derivacion(r):
         "expediente": r[9],
         "tipo_patologia": r[10],
         "diagnostico": r[11],
-        "tratamiento": r[12],
-        "fecha_turno": r[13].strftime("%Y-%m-%d") if r[13] else None,
-        "creado_en": r[14].isoformat() if r[14] else None,
-        "destino": r[15],
-        "id_cobertura": r[16],
-        "cobertura_prestacion": r[17],
-        "centro_medico": r[18],
-        "monto_prestacion": float(r[19]) if r[19] is not None else None,
-        "id_tipo_traslado": r[20],
-        "tipo_traslado": r[21],
-        "cant_acompanantes": r[22],
-        "monto_traslado": float(r[23]) if r[23] is not None else None,
-        "id_cobertura_alojamiento": r[24],
-        "cobertura_alojamiento": r[25],
-        "id_tipo_alojamiento": r[26],
-        "tipo_alojamiento": r[27],
-        "lugar_alojamiento": r[28],
-        "cant_noches": r[29],
-        "monto_alojamiento": float(r[30]) if r[30] is not None else None,
-        "id_tipo_patologia": r[31],
-        "tipo_patologia_nombre": r[32],
-        "id_tratamiento": r[33],
-        "tratamiento_nombre": r[34],
-        "diagnostico_tratamiento": r[35],
-        "id_centro_medico": r[36],
-        "id_lugar_alojamiento": r[37],
-        "id_destino": r[38],
-        "id_diagnostico": r[39],
-        "diagnostico_nombre": r[40],
+        "fecha_turno": r[12].strftime("%Y-%m-%d") if r[12] else None,
+        "creado_en": r[13].isoformat() if r[13] else None,
+        "destino": r[14],
+        "id_cobertura": r[15],
+        "cobertura_prestacion": r[16],
+        "centro_medico": r[17],
+        "monto_prestacion": float(r[18]) if r[18] is not None else None,
+        "id_tipo_traslado": r[19],
+        "tipo_traslado": r[20],
+        "cant_acompanantes": r[21],
+        "monto_traslado": float(r[22]) if r[22] is not None else None,
+        "id_cobertura_alojamiento": r[23],
+        "cobertura_alojamiento": r[24],
+        "id_tipo_alojamiento": r[25],
+        "tipo_alojamiento": r[26],
+        "lugar_alojamiento": r[27],
+        "cant_noches": r[28],
+        "monto_alojamiento": float(r[29]) if r[29] is not None else None,
+        "diagnostico_tratamiento": r[30],
+        "id_centro_medico": r[31],
+        "id_lugar_alojamiento": r[32],
+        "id_destino": r[33],
     }
 
 
@@ -2016,10 +1850,10 @@ def crear_derivacion(datos: DerivacionRequest, token: str | None = Depends(oauth
                    (mes, nro_disposicion, fecha, expediente,
                     afiliado_documento, afiliado_nombre, afiliado_credencial,
                     afiliado_edad, afiliado_sexo,
-                    tipo_patologia, diagnostico, tratamiento, fecha_turno,
-                    id_tipo_patologia, id_tratamiento, id_diagnostico, diagnostico_tratamiento,
+                    tipo_patologia, diagnostico, fecha_turno,
+                    diagnostico_tratamiento,
                     creado_por)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                RETURNING id_derivacion""",
             (
                 datos.mes,
@@ -2033,11 +1867,7 @@ def crear_derivacion(datos: DerivacionRequest, token: str | None = Depends(oauth
                 _to_str(datos.afiliado_sexo),
                 _to_str(datos.tipo_patologia),
                 _to_str(datos.diagnostico),
-                _to_str(datos.tratamiento),
                 _to_fecha_sql(datos.fecha_turno),
-                datos.id_tipo_patologia,
-                datos.id_tratamiento,
-                datos.id_diagnostico,
                 _to_str(datos.diagnostico_tratamiento),
                 uemail or str(uid),
             ),
@@ -2096,8 +1926,8 @@ def actualizar_derivacion(derivacion_id: int, datos: DerivacionRequest, token: s
                    mes=%s, nro_disposicion=%s, fecha=%s, expediente=%s,
                    afiliado_documento=%s, afiliado_nombre=%s, afiliado_credencial=%s,
                    afiliado_edad=%s, afiliado_sexo=%s,
-                   tipo_patologia=%s, diagnostico=%s, tratamiento=%s, fecha_turno=%s,
-                   id_tipo_patologia=%s, id_tratamiento=%s, id_diagnostico=%s, diagnostico_tratamiento=%s
+                   tipo_patologia=%s, diagnostico=%s, fecha_turno=%s,
+                   diagnostico_tratamiento=%s
                WHERE id_derivacion=%s""",
             (
                 datos.mes,
@@ -2111,11 +1941,7 @@ def actualizar_derivacion(derivacion_id: int, datos: DerivacionRequest, token: s
                 _to_str(datos.afiliado_sexo),
                 _to_str(datos.tipo_patologia),
                 _to_str(datos.diagnostico),
-                _to_str(datos.tratamiento),
                 _to_fecha_sql(datos.fecha_turno),
-                datos.id_tipo_patologia,
-                datos.id_tratamiento,
-                datos.id_diagnostico,
                 _to_str(datos.diagnostico_tratamiento),
                 derivacion_id,
             ),
@@ -2192,6 +2018,55 @@ def eliminar_derivacion(derivacion_id: int, token: str | None = Depends(oauth2_s
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/patologias")
+def patologias_todas():
+    """Todas las patologías de la tabla PATOLOGIAS (SQL Server)."""
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """SELECT p.PAT_ID, p.PAT_NOMBRE, p.PAT_CIE_CLAVE, d.descripcion
+               FROM PATOLOGIAS p
+               LEFT JOIN CIE_diagnosticos d ON p.PAT_CIE_CLAVE = d.codigo
+               ORDER BY p.PAT_NOMBRE"""
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+        return [
+            {
+                "pat_id": _num(r[0]),
+                "nombre": (r[1] or "").strip(),
+                "cie_clave": (r[2] or "").strip(),
+                "diagnostico": (r[3] or "").strip(),
+            }
+            for r in rows
+        ]
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/diagnosticos")
+def diagnosticos_todos():
+    """Todos los diagnósticos de la tabla CIE_diagnosticos (SQL Server)."""
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT codigo, descripcion FROM CIE_diagnosticos ORDER BY codigo"
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+        return [
+            {
+                "codigo": (r[0] or "").strip(),
+                "descripcion": (r[1] or "").strip(),
+            }
+            for r in rows
+        ]
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @app.get("/patologias/afiliado/{documento}")

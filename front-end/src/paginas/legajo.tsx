@@ -9,10 +9,8 @@ import FormularioDerivacion, {
   montoTotal,
   esSoloLectura,
 } from './FormularioDerivacion';
-import CaratulaLegajo from './CaratulaLegajo';
 import './globales.css';
 import './legajo.css';
-import './caratula-legajo.css';
 
 interface Afiliado {
   documento: number;
@@ -33,7 +31,6 @@ export default function Legajo() {
   const [error, setError] = useState('');
   const [buscado, setBuscado] = useState(false);
   const [detalle, setDetalle] = useState<{ modo: 'ver' | 'editar'; deriv: Derivacion } | null>(null);
-  const [verCaratula, setVerCaratula] = useState(false);
 
   async function buscarLegajo() {
     const doc = documento.trim();
@@ -77,20 +74,6 @@ export default function Legajo() {
     afiliado?.nombre_completo ||
     (afiliado ? `${afiliado.apellido || ''} ${afiliado.nombre || ''}`.trim() : '') ||
     (derivaciones[0]?.afiliado_nombre ?? '');
-
-  /* ── Vista: Carátula del legajo ── */
-  if (verCaratula) {
-    return (
-      <>
-        <NavBar />
-        <CaratulaLegajo
-          documento={documento.trim()}
-          nombreAfiliado={nombreAfiliado}
-          onVolver={() => setVerCaratula(false)}
-        />
-      </>
-    );
-  }
 
   /* ── Vista: Detalle de una derivación (ver / editar) ── */
   if (detalle) {
@@ -161,23 +144,6 @@ export default function Legajo() {
                   </div>
                 )}
 
-                {/* Botón Carátula del Legajo */}
-                {(afiliado || nombreAfiliado) && (
-                  <button
-                    className="lg-caratula-btn"
-                    onClick={() => setVerCaratula(true)}
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                      <polyline points="14 2 14 8 20 8"/>
-                      <line x1="16" y1="13" x2="8" y2="13"/>
-                      <line x1="16" y1="17" x2="8" y2="17"/>
-                      <polyline points="10 9 9 9 8 9"/>
-                    </svg>
-                    Carátula del Legajo
-                  </button>
-                )}
-
                 {derivaciones.length === 0 ? (
                   <p className="lg-empty">
                     {afiliado
@@ -192,9 +158,6 @@ export default function Legajo() {
                           <th>N° Disp.</th>
                           <th>Fecha</th>
                           <th>Fecha turno</th>
-                          <th>Tipo patología</th>
-                          <th>Diagnóstico</th>
-                          <th>Tratamiento</th>
                           <th>Monto Total</th>
                           <th></th>
                         </tr>
@@ -209,9 +172,6 @@ export default function Legajo() {
                             </td>
                             <td className="lg-fecha-cell">{formatFecha(d.fecha)}</td>
                             <td className="lg-fecha-cell">{formatFecha(d.fecha_turno)}</td>
-                            <td>{d.tipo_patologia_nombre || '-'}</td>
-                            <td>{d.diagnostico_nombre || '-'}</td>
-                            <td>{d.tratamiento || d.tratamiento_nombre || '-'}</td>
                             <td className="lg-monto-cell">{formatMonto(montoTotal(d))}</td>
                             <td>
                               <div className="lg-actions">
