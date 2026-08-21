@@ -14,7 +14,7 @@
   display: flex;
   flex-direction: column;
   border-radius: var(--r-lg);
-  overflow: hidden;
+  /* overflow visible para que el desplegable no quede recortado */
   border: 1px solid var(--border);
   box-shadow: var(--shadow-lg);
   background: var(--surface);
@@ -29,6 +29,7 @@
   padding: 1rem 1.5rem;
   background: #1e2e53;
   position: relative;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
 }
 
 .cl-header::after {
@@ -39,6 +40,7 @@
     radial-gradient(ellipse 55% 120% at 85% 50%, rgba(90, 116, 186, 0.42) 0%, transparent 70%),
     radial-gradient(ellipse 40% 100% at 10% 10%, rgba(68, 92, 164, 0.35) 0%, transparent 65%);
   pointer-events: none;
+  border-radius: inherit;
 }
 
 .cl-header > * {
@@ -217,6 +219,122 @@
   color: var(--text-secondary);
   cursor: default;
   border-color: transparent;
+}
+
+/* ─── Desplegable de área interviniente ──────────────────────── */
+.cl-dd {
+  position: relative;
+  width: 100%;
+}
+
+.cl-dd-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.55rem 0.8rem;
+  font-size: 0.88rem;
+  font-family: inherit;
+  font-weight: 600;
+  text-align: left;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.cl-dd-btn:hover {
+  border-color: var(--ips);
+}
+
+.cl-dd-btn--open {
+  border-color: var(--ips);
+  box-shadow: 0 0 0 3px var(--ips-subtle);
+}
+
+.cl-dd-btn--placeholder .cl-dd-btn-text {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.cl-dd-btn-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cl-dd-caret {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--ips);
+  transition: transform 0.15s;
+}
+
+.cl-dd-btn--open .cl-dd-caret {
+  transform: rotate(180deg);
+}
+
+.cl-dd-list {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 0.3rem;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-lg);
+  /* Máximo ~4 opciones visibles; el resto con scroll */
+  max-height: calc(4 * 2.35rem + 0.3rem);
+  overflow-y: auto;
+}
+
+.cl-dd-opt {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.86rem;
+  font-family: inherit;
+  text-align: left;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  border-radius: calc(var(--r-sm) - 2px);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.cl-dd-opt:hover {
+  background: var(--ips-subtle);
+}
+
+.cl-dd-opt--sel {
+  background: var(--ips);
+  color: white;
+  font-weight: 700;
+}
+
+.cl-dd-opt--sel:hover {
+  background: var(--ips);
+  color: white;
+}
+
+/* Scrollbar del desplegable */
+.cl-dd-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.cl-dd-list::-webkit-scrollbar-thumb {
+  background: var(--ips-border);
+  border-radius: 999px;
 }
 
 .cl-input--sm {
@@ -411,8 +529,183 @@
   flex-shrink: 0;
 }
 
+/* ─── Dos botones de carátula (en el formulario) ─────────────── */
+.lg-caratula-btns {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.lg-caratula-btns .lg-caratula-btn {
+  margin-bottom: 0;
+  flex: 1;
+}
+
+/* ─── Tabs Ver / Movimiento ──────────────────────────────────── */
+.cl-tabs {
+  display: flex;
+  gap: 0.35rem;
+  background: rgba(255, 255, 255, 0.12);
+  padding: 0.25rem;
+  border-radius: var(--r);
+}
+
+.cl-tab {
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: calc(var(--r) - 3px);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.cl-tab--active {
+  background: white;
+  color: var(--ips);
+}
+
+/* ─── Estado actual ──────────────────────────────────────────── */
+.cl-actual {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.85rem;
+  background: var(--ips-subtle);
+  border: 1px solid var(--ips-border);
+  border-radius: var(--r);
+}
+
+.cl-actual-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+}
+
+.cl-actual-area {
+  font-weight: 800;
+  color: var(--ips);
+}
+
+/* ─── Formulario de movimiento ───────────────────────────────── */
+.cl-form-title {
+  margin: 0 0 0.85rem;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.cl-hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.cl-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+/* ─── Historial / timeline ───────────────────────────────────── */
+.cl-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.cl-tl-item {
+  position: relative;
+  display: flex;
+  gap: 0.85rem;
+  padding: 0 0 1.1rem 0.25rem;
+}
+
+.cl-tl-item::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 14px;
+  bottom: -4px;
+  width: 2px;
+  background: var(--border);
+}
+
+.cl-tl-item:last-child::before {
+  display: none;
+}
+
+.cl-tl-dot {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  margin-top: 3px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 3px solid var(--ips-border);
+}
+
+.cl-tl-item--actual .cl-tl-dot {
+  border-color: #16a34a;
+  background: #16a34a;
+}
+
+.cl-tl-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.cl-tl-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.cl-tl-area {
+  font-weight: 800;
+  color: var(--text);
+}
+
+.cl-tl-badge {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #15803d;
+  background: rgba(22, 163, 74, 0.12);
+  border: 1px solid rgba(22, 163, 74, 0.35);
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+}
+
+.cl-tl-meta {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.cl-tl-agente {
+  font-weight: 600;
+}
+
 /* ─── Responsive ─────────────────────────────────────────────── */
 @media (max-width: 640px) {
+  .lg-caratula-btns {
+    flex-direction: column;
+  }
+
   .cl-field-row {
     flex-direction: column;
     gap: 0;

@@ -263,6 +263,7 @@ export default function FormularioDerivacion({ modo, mes, derivacion, onVolver, 
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
   const [verCaratula, setVerCaratula] = useState(false);
+  const [caratulaModo, setCaratulaModo] = useState<'ver' | 'movimiento'>('ver');
 
   const [busquedaAfiliado, setBusquedaAfiliado] = useState('');
   const [resultadosAfiliado, setResultadosAfiliado] = useState<AfiliadoBusqueda[]>([]);
@@ -554,6 +555,7 @@ export default function FormularioDerivacion({ modo, mes, derivacion, onVolver, 
         derivacionId={derivacion.id}
         nombreAfiliado={form.afiliado_nombre || '-'}
         onVolver={() => setVerCaratula(false)}
+        modoInicial={caratulaModo}
       />
     );
   }
@@ -634,21 +636,35 @@ export default function FormularioDerivacion({ modo, mes, derivacion, onVolver, 
 
         {/* ── Body: una sola columna ── */}
         <div className="dv-form-body dv-form-body--single">
-            {/* Botón Carátula de Derivación (solo si la derivación ya existe) */}
+            {/* Botones Carátula de Derivación (solo si la derivación ya existe) */}
             {derivacion?.id && (
-              <button
-                className="lg-caratula-btn"
-                onClick={() => setVerCaratula(true)}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                  <polyline points="14 2 14 8 20 8"/>
-                  <line x1="16" y1="13" x2="8" y2="13"/>
-                  <line x1="16" y1="17" x2="8" y2="17"/>
-                  <polyline points="10 9 9 9 8 9"/>
-                </svg>
-                Carátula de Derivación
-              </button>
+              <div className="lg-caratula-btns">
+                <button
+                  className="lg-caratula-btn"
+                  onClick={() => { setCaratulaModo('ver'); setVerCaratula(true); }}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10 9 9 9 8 9"/>
+                  </svg>
+                  Ver carátula
+                </button>
+                {!soloVista && (
+                  <button
+                    className="lg-caratula-btn"
+                    onClick={() => { setCaratulaModo('movimiento'); setVerCaratula(true); }}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M5 12h14"/>
+                      <path d="m12 5 7 7-7 7"/>
+                    </svg>
+                    Movimiento carátula
+                  </button>
+                )}
+              </div>
             )}
 
             {/* Datos de la Derivación */}

@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { fetchAuth, API } from '../auth';
 import { esSoloLectura } from './FormularioDerivacion';
 import './caratula-legajo.css';
 
-/** Pasos fijos de la carátula, en el orden del documento Word original. */
-const PASOS = [
+/** Áreas intervinientes posibles, en el orden del documento Word original. */
+const AREAS = [
   'Ingreso al sector',
   'Pase a Auditoría',
   'Auditoría Médica',
@@ -23,54 +23,64 @@ const PASOS = [
   'Archivo',
 ];
 
-interface Paso {
-  nombre: string;
-  fecha: string;
-  agente: string;
-  /** Campo extra para "Trámite de TyA" y "Disposición" */
-  nro?: string;
+interface Movimiento {
+  id: number;
+  area: string;
+  creado_en: string | null;
+  agente: string | null;
 }
 
-interface CaratulaData {
-  id?: number;
-  derivacion_id: number;
-  nro_legajo: string;
-  fecha_inicio: string;
-  pasos: Paso[];
-  observaciones: string;
+function formatearFechaHora(iso: string | null): string {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleString('es-AR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
-function pasosVacios(): Paso[] {
-  return PASOS.map((nombre) => ({ nombre, fecha: '', agente: '' }));
-}
-
-function caratulaVacia(derivacionId: number): CaratulaData {
-  return {
-    derivacion_id: derivacionId,
-    nro_legajo: '',
-    fecha_inicio: '',
-    pasos: pasosVacios(),
-    observaciones: '',
-  };
-}
+type Modo = 'ver' | 'movimiento';
 
 interface Props {
   derivacionId: number;
   nombreAfiliado: string;
   onVolver: () => void;
+  modoInicial?: Modo;
 }
 
-export default function CaratulaDerivacion({ derivacionId, nombreAfiliado, onVolver }: Props) {
+export default function CaratulaDerivacion({
+  derivacionId,
+  nombreAfiliado,
+  onVolver,
+  modoInicial = 'ver',
+}: Props) {
   const soloLectura = esSoloLectura();
-  const [caratula, setCaratula] = useState<CaratulaData>(caratulaVacia(derivacionId));
-  const [existe, setExiste] = useState(false);
-  const [editando, setEditando] = useState(false);
+  const [modo, setModo] = useState<Modo>(soloLectura ? 'ver' : modoInicial);
+  const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [showConfirm, setShowConfirm] = useState(false);
-  /** Copia para descartar cambios */
-  const [backup, setBackup] = useState<CaratulaData | null>(null);
+
+  // Formulario de nuevo movimiento
+  const [area, setArea] = useState('');
+  const [ddAbierto, setDdAbierto] = useState(false);
+  const ddRef = useRef<HTMLDivElement>(null);
+
+  // Cerrar el desplegable al hacer click fuera
+  useEffect(() => {
+    if (!ddAbierto) return;
+    function onClickFuera(e: MouseEvent) {
+      if (ddRef.current && !ddRef.current.contains(e.target as Node)) {
+        setDdAbierto(false);
+      }
+    }
+    document.addEventListener('mousedown', onClickFuera);
+    return () => document.removeEventListener('mousedown', onClickFuera);
+  }, [ddAbierto]);
 
   useEffect(() => {
     cargar();
@@ -81,306 +91,178 @@ export default function CaratulaDerivacion({ derivacionId, nombreAfiliado, onVol
     setLoading(true);
     setError('');
     try {
-      const res = await fetchAuth(`${API}/caratulas/derivacion/${derivacionId}`);
+      const res = await fetchAuth(`${API}/caratulas/derivacion/${derivacionId}/movimientos`);
       if (res.ok) {
-        const data = await res.json();
-        if (data && data.id) {
-          // Merge: asegurar que todos los pasos existen (por si se agregaron después)
-          const pasosGuardados: Paso[] = data.pasos || [];
-          const pasosMerged = PASOS.map((nombre) => {
-            const found = pasosGuardados.find((p: Paso) => p.nombre === nombre);
-            return found || { nombre, fecha: '', agente: '' };
-          });
-          setCaratula({ ...data, pasos: pasosMerged });
-          setExiste(true);
-          setEditando(false);
-        } else {
-          setCaratula(caratulaVacia(derivacionId));
-          setExiste(false);
-          setEditando(false);
-        }
+        setMovimientos(await res.json());
       } else {
-        setCaratula(caratulaVacia(derivacionId));
-        setExiste(false);
+        setMovimientos([]);
       }
     } catch (e: any) {
-      setError(e.message || 'Error al cargar la carátula');
+      setError(e.message || 'Error al cargar el historial');
     } finally {
       setLoading(false);
     }
   }
 
-  function iniciarCreacion() {
-    setEditando(true);
-    setCaratula(caratulaVacia(derivacionId));
-  }
-
-  function iniciarEdicion() {
-    setBackup(JSON.parse(JSON.stringify(caratula)));
-    setEditando(true);
-  }
-
-  function cancelarEdicion() {
-    if (backup) {
-      setCaratula(backup);
-      setBackup(null);
+  async function guardarMovimiento() {
+    if (!area) {
+      setError('Seleccione un área interviniente.');
+      return;
     }
-    setEditando(false);
-  }
-
-  function updateField(field: keyof CaratulaData, value: string) {
-    setCaratula((prev) => ({ ...prev, [field]: value }));
-  }
-
-  function updatePaso(idx: number, field: keyof Paso, value: string) {
-    setCaratula((prev) => {
-      const pasos = [...prev.pasos];
-      pasos[idx] = { ...pasos[idx], [field]: value };
-      return { ...prev, pasos };
-    });
-  }
-
-  async function guardar() {
     setSaving(true);
     setError('');
-    setShowConfirm(false);
     try {
-      const body = {
-        derivacion_id: derivacionId,
-        nro_legajo: caratula.nro_legajo,
-        fecha_inicio: caratula.fecha_inicio || null,
-        pasos: caratula.pasos,
-        observaciones: caratula.observaciones,
-      };
-
-      let res: Response;
-      if (existe) {
-        res = await fetchAuth(`${API}/caratulas/derivacion/${derivacionId}`, {
-          method: 'PUT',
-          body: JSON.stringify(body),
-        });
-      } else {
-        res = await fetchAuth(`${API}/caratulas/derivacion`, {
-          method: 'POST',
-          body: JSON.stringify(body),
-        });
-      }
-
+      const res = await fetchAuth(`${API}/caratulas/derivacion/${derivacionId}/movimientos`, {
+        method: 'POST',
+        body: JSON.stringify({ area }),
+      });
       if (!res.ok) {
         const err = await res.json().catch(() => null);
-        throw new Error(err?.detail || 'Error al guardar');
+        throw new Error(err?.detail || 'Error al guardar el movimiento');
       }
-
-      setEditando(false);
-      setBackup(null);
+      setArea('');
       await cargar();
+      setModo('ver');
     } catch (e: any) {
-      setError(e.message || 'Error al guardar la carátula');
+      setError(e.message || 'Error al guardar el movimiento');
     } finally {
       setSaving(false);
     }
   }
 
-  const disabled = !editando;
-
-  if (loading) {
-    return (
-      <div className="cl-page">
-        <div className="cl-panel">
-          <div className="cl-header">
-            <button className="cl-btn cl-btn--back" onClick={onVolver}>← Volver</button>
-            <h2 className="cl-header-title">Carátula de Derivación</h2>
-          </div>
-          <div className="cl-body"><p className="cl-loading">Cargando...</p></div>
-        </div>
-      </div>
-    );
-  }
-
-  /* Si no existe y no está creando → pantalla para crear */
-  if (!existe && !editando) {
-    return (
-      <div className="cl-page">
-        <div className="cl-panel">
-          <div className="cl-header">
-            <button className="cl-btn cl-btn--back" onClick={onVolver}>← Volver</button>
-            <h2 className="cl-header-title">Carátula de Derivación</h2>
-          </div>
-          <div className="cl-body cl-body--empty">
-            <p className="cl-empty-text">Esta derivación no tiene carátula creada.</p>
-            {!soloLectura && (
-              <button className="cl-btn cl-btn--primary cl-btn--lg" onClick={iniciarCreacion}>
-                Crear Carátula de Derivación
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const actual = movimientos.length > 0 ? movimientos[movimientos.length - 1] : null;
 
   return (
     <div className="cl-page">
       <div className="cl-panel">
         {/* Header */}
         <div className="cl-header">
-          <button className="cl-btn cl-btn--back" onClick={editando && existe ? cancelarEdicion : onVolver}>
-            ← {editando && existe ? 'Cancelar' : 'Volver'}
-          </button>
+          <button className="cl-btn cl-btn--back" onClick={onVolver}>← Volver</button>
           <h2 className="cl-header-title">Carátula de Derivación</h2>
           <div className="cl-header-actions">
-            {existe && !editando && !soloLectura && (
-              <button className="cl-btn cl-btn--primary" onClick={iniciarEdicion}>
-                Editar
-              </button>
-            )}
-            {editando && (
+            <div className="cl-tabs">
               <button
-                className="cl-btn cl-btn--success"
-                onClick={() => setShowConfirm(true)}
-                disabled={saving}
+                className={`cl-tab${modo === 'ver' ? ' cl-tab--active' : ''}`}
+                onClick={() => setModo('ver')}
               >
-                {saving ? 'Guardando...' : 'Guardar'}
+                Ver carátula
               </button>
-            )}
+              {!soloLectura && (
+                <button
+                  className={`cl-tab${modo === 'movimiento' ? ' cl-tab--active' : ''}`}
+                  onClick={() => setModo('movimiento')}
+                >
+                  Movimiento
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
         {error && <p className="cl-error">{error}</p>}
 
         <div className="cl-body">
-          {/* Encabezado de la carátula */}
+          {/* Datos del afiliado */}
           <div className="cl-section">
-            <div className="cl-field-row">
-              <div className="cl-field">
-                <label className="cl-label">N° Legajo</label>
-                <input
-                  className={`cl-input${disabled ? ' cl-input--ro' : ''}`}
-                  value={caratula.nro_legajo}
-                  onChange={(e) => updateField('nro_legajo', e.target.value)}
-                  readOnly={disabled}
-                  placeholder={editando ? 'Ingrese N° de legajo' : '-'}
-                />
-              </div>
-              <div className="cl-field">
-                <label className="cl-label">Fecha de inicio</label>
-                <input
-                  type="date"
-                  className={`cl-input${disabled ? ' cl-input--ro' : ''}`}
-                  value={caratula.fecha_inicio || ''}
-                  onChange={(e) => updateField('fecha_inicio', e.target.value)}
-                  readOnly={disabled}
-                />
-              </div>
-            </div>
             <div className="cl-field">
               <label className="cl-label">Apellido y nombre del Afiliado</label>
-              <input
-                className="cl-input cl-input--ro"
-                value={nombreAfiliado}
-                readOnly
-              />
+              <input className="cl-input cl-input--ro" value={nombreAfiliado} readOnly />
             </div>
+            {actual && (
+              <div className="cl-actual">
+                <span className="cl-actual-label">Estado actual</span>
+                <span className="cl-actual-area">{actual.area}</span>
+              </div>
+            )}
           </div>
 
-          {/* Tabla de pasos */}
-          <div className="cl-section">
-            <div className="cl-table-wrap">
-              <table className="cl-table">
-                <thead>
-                  <tr>
-                    <th className="cl-th-paso">Área interviniente</th>
-                    <th>Fecha</th>
-                    <th>Agente</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {caratula.pasos.map((paso, idx) => {
-                    const tieneNro = paso.nombre === 'Trámite de TyA' || paso.nombre === 'Disposición';
+          {/* ── Registrar movimiento ── */}
+          {modo === 'movimiento' && !soloLectura && (
+            <div className="cl-section">
+              <p className="cl-form-title">Registrar movimiento</p>
+              <div className="cl-field">
+                <label className="cl-label">Área interviniente</label>
+                <div className="cl-dd" ref={ddRef}>
+                  <button
+                    type="button"
+                    className={`cl-dd-btn${area ? '' : ' cl-dd-btn--placeholder'}${ddAbierto ? ' cl-dd-btn--open' : ''}`}
+                    onClick={() => setDdAbierto((o) => !o)}
+                  >
+                    <span className="cl-dd-btn-text">{area || 'Seleccione un área...'}</span>
+                    <svg className="cl-dd-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </button>
+                  {ddAbierto && (
+                    <ul className="cl-dd-list" role="listbox">
+                      {AREAS.map((a) => (
+                        <li key={a}>
+                          <button
+                            type="button"
+                            role="option"
+                            aria-selected={a === area}
+                            className={`cl-dd-opt${a === area ? ' cl-dd-opt--sel' : ''}`}
+                            onClick={() => { setArea(a); setDdAbierto(false); }}
+                          >
+                            {a}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+              <p className="cl-hint">
+                Se guardará con la fecha y hora actual, y con su usuario como agente.
+              </p>
+              <div className="cl-form-actions">
+                <button
+                  className="cl-btn cl-btn--success"
+                  onClick={guardarMovimiento}
+                  disabled={saving || !area}
+                >
+                  {saving ? 'Guardando...' : 'Guardar movimiento'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Ver carátula: historial ── */}
+          {modo === 'ver' && (
+            <div className="cl-section">
+              <p className="cl-form-title">Historial de movimientos</p>
+              {loading ? (
+                <p className="cl-loading">Cargando...</p>
+              ) : movimientos.length === 0 ? (
+                <p className="cl-empty-text">
+                  Todavía no hay movimientos registrados para esta derivación.
+                </p>
+              ) : (
+                <ul className="cl-timeline">
+                  {movimientos.map((m, idx) => {
+                    const esActual = idx === movimientos.length - 1;
                     return (
-                      <tr key={idx} className="cl-row">
-                        <td className="cl-td-paso">
-                          <span>{paso.nombre}</span>
-                          {tieneNro && (
-                            <div className="cl-nro-inline">
-                              <span className="cl-nro-label">N°</span>
-                              <input
-                                className={`cl-input cl-input--sm${disabled ? ' cl-input--ro' : ''}`}
-                                value={paso.nro || ''}
-                                onChange={(e) => updatePaso(idx, 'nro', e.target.value)}
-                                readOnly={disabled}
-                                placeholder={editando ? '...' : '-'}
-                              />
-                            </div>
-                          )}
-                        </td>
-                        <td>
-                          <input
-                            type="date"
-                            className={`cl-input cl-input--cell${disabled ? ' cl-input--ro' : ''}`}
-                            value={paso.fecha}
-                            onChange={(e) => updatePaso(idx, 'fecha', e.target.value)}
-                            readOnly={disabled}
-                          />
-                        </td>
-                        <td>
-                          <input
-                            className={`cl-input cl-input--cell${disabled ? ' cl-input--ro' : ''}`}
-                            value={paso.agente}
-                            onChange={(e) => updatePaso(idx, 'agente', e.target.value)}
-                            readOnly={disabled}
-                          />
-                        </td>
-                      </tr>
+                      <li key={m.id} className={`cl-tl-item${esActual ? ' cl-tl-item--actual' : ''}`}>
+                        <div className="cl-tl-dot" />
+                        <div className="cl-tl-content">
+                          <div className="cl-tl-head">
+                            <span className="cl-tl-area">{m.area}</span>
+                            {esActual && <span className="cl-tl-badge">Actual</span>}
+                          </div>
+                          <div className="cl-tl-meta">
+                            <span>{formatearFechaHora(m.creado_en)}</span>
+                            <span className="cl-tl-agente">{m.agente || '-'}</span>
+                          </div>
+                        </div>
+                      </li>
                     );
                   })}
-                </tbody>
-              </table>
+                </ul>
+              )}
             </div>
-          </div>
-
-          {/* Observaciones */}
-          <div className="cl-section">
-            <label className="cl-label">OBSERVACIONES</label>
-            <textarea
-              className={`cl-textarea${disabled ? ' cl-input--ro' : ''}`}
-              value={caratula.observaciones}
-              onChange={(e) => updateField('observaciones', e.target.value)}
-              readOnly={disabled}
-              rows={4}
-              placeholder={editando ? 'Escriba observaciones...' : '-'}
-            />
-          </div>
+          )}
         </div>
       </div>
-
-      {/* Modal de confirmación */}
-      {showConfirm && (
-        <div className="cl-overlay" onClick={() => setShowConfirm(false)}>
-          <div className="cl-modal" onClick={(e) => e.stopPropagation()}>
-            <h3 className="cl-modal-title">Confirmar cambios</h3>
-            <p className="cl-modal-text">
-              ¿Está seguro de que desea guardar los cambios en la carátula de derivación?
-            </p>
-            <div className="cl-modal-actions">
-              <button
-                className="cl-btn cl-btn--outline"
-                onClick={() => setShowConfirm(false)}
-                disabled={saving}
-              >
-                Cancelar
-              </button>
-              <button
-                className="cl-btn cl-btn--success"
-                onClick={guardar}
-                disabled={saving}
-              >
-                {saving ? 'Guardando...' : 'Sí, guardar'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

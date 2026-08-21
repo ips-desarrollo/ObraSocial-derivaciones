@@ -1246,20 +1246,23 @@ def _ensure_caratula_table():
                 actualizado_por VARCHAR(100)
             );
         """)
-        # Nueva tabla: una carátula por derivación
+        # Tabla vieja de carátula (reemplazada por el historial de movimientos)
+        cur.execute("DROP TABLE IF EXISTS caratula_derivacion;")
+        # Historial de movimientos: un registro por cada pase de área.
+        # Es append-only; refleja dónde está el expediente en cada momento,
+        # incluso si vuelve a un área anterior.
         cur.execute("""
-            CREATE TABLE IF NOT EXISTS caratula_derivacion (
+            CREATE TABLE IF NOT EXISTS caratula_movimiento (
                 id SERIAL PRIMARY KEY,
-                derivacion_id INTEGER NOT NULL UNIQUE REFERENCES derivacion(id_derivacion) ON DELETE CASCADE,
-                nro_legajo VARCHAR(50),
-                fecha_inicio DATE,
-                pasos JSONB NOT NULL DEFAULT '[]'::jsonb,
-                observaciones TEXT,
+                derivacion_id INTEGER NOT NULL REFERENCES derivacion(id_derivacion) ON DELETE CASCADE,
+                area VARCHAR(300) NOT NULL,
                 creado_en TIMESTAMP DEFAULT NOW(),
-                actualizado_en TIMESTAMP DEFAULT NOW(),
-                creado_por VARCHAR(100),
-                actualizado_por VARCHAR(100)
+                agente VARCHAR(100)
             );
+        """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_caratula_mov_deriv
+                ON caratula_movimiento(derivacion_id);
         """)
         pg.commit()
         cur.close()
@@ -1271,29 +1274,9 @@ def _ensure_caratula_table():
 _ensure_caratula_table()
 
 
-# Los 16 pasos fijos de la carátula, en orden del DOCX.
-_PASOS_CARATULA = [
-    "Ingreso al sector",
-    "Pase a Auditoría",
-    "Auditoría Médica",
-    "Auditoría Oftalmológica (en caso de corresponder)",
-    "Planilla de PET (en caso de corresponder)",
-    "Envío a MEDITAR",
-    "TURNO MEDITAR/PROPIO",
-    "Notificación de Turno",
-    "Autorización excepcional de Traslado, alojamiento, o acompañantes adicionales (en caso de corresponder)",
-    "Trámite de TyA",
-    "Emisión de pasajes",
-    "Voucher de alojamiento",
-    "Pase a Disposición",
-    "Disposición",
-    "Entrega al afiliado de la documentación",
-    "Archivo",
-]
-
-
-@app.get("/caratulas/derivacion/{derivacion_id}")
-def obtener_caratula_derivacion(derivacion_id: int, token: str | None = Depends(oauth2_scheme)):
+# ── Movimientos de la carátula (historial de pases entre áreas) ──────────
+@app.get("/caratulas/derivacion/{derivacion_id}/movimientos")
+def listar_movimientos_caratula(derivacion_id: int, token: str | None = Depends(oauth2_scheme)):
     uid, _ = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
@@ -1301,100 +1284,57 @@ def obtener_caratula_derivacion(derivacion_id: int, token: str | None = Depends(
         pg = get_pg_connection()
         cur = pg.cursor()
         cur.execute(
-            """SELECT id, derivacion_id, nro_legajo, fecha_inicio, pasos, observaciones,
-                      creado_en, actualizado_en
-               FROM caratula_derivacion WHERE derivacion_id = %s""",
+            """SELECT id, area, creado_en, agente
+               FROM caratula_movimiento
+               WHERE derivacion_id = %s
+               ORDER BY creado_en ASC, id ASC""",
             (derivacion_id,),
         )
-        row = cur.fetchone()
+        rows = cur.fetchall()
         cur.close()
         pg.close()
-        if row is None:
-            return None
+        return [
+            {
+                "id": r[0],
+                "area": r[1],
+                "creado_en": r[2].isoformat() if r[2] else None,
+                "agente": r[3],
+            }
+            for r in rows
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/caratulas/derivacion/{derivacion_id}/movimientos")
+def crear_movimiento_caratula(derivacion_id: int, datos: dict = Body(...), token: str | None = Depends(oauth2_scheme)):
+    uid, uemail = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    if _solo_lectura(_extraer_roles(token)):
+        raise HTTPException(status_code=403, detail="Sin permisos para registrar movimientos")
+    area = _to_str(datos.get("area"))
+    if not area:
+        raise HTTPException(status_code=400, detail="El área interviniente es obligatoria")
+    try:
+        pg = get_pg_connection()
+        cur = pg.cursor()
+        cur.execute(
+            """INSERT INTO caratula_movimiento (derivacion_id, area, agente)
+               VALUES (%s, %s, %s)
+               RETURNING id, creado_en""",
+            (derivacion_id, area, uemail or str(uid)),
+        )
+        new_id, creado_en = cur.fetchone()
+        pg.commit()
+        cur.close()
+        pg.close()
         return {
-            "id": row[0],
-            "derivacion_id": row[1],
-            "nro_legajo": row[2],
-            "fecha_inicio": row[3].strftime("%Y-%m-%d") if row[3] else None,
-            "pasos": row[4] if row[4] else [],
-            "observaciones": row[5],
-            "creado_en": row[6].isoformat() if row[6] else None,
-            "actualizado_en": row[7].isoformat() if row[7] else None,
+            "ok": True,
+            "id": new_id,
+            "creado_en": creado_en.isoformat() if creado_en else None,
+            "agente": uemail or str(uid),
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/caratulas/derivacion")
-def crear_caratula_derivacion(datos: dict = Body(...), token: str | None = Depends(oauth2_scheme)):
-    uid, uemail = _extraer_usuario(token)
-    if uid is None:
-        raise HTTPException(status_code=401, detail="No autenticado")
-    if _solo_lectura(_extraer_roles(token)):
-        raise HTTPException(status_code=403, detail="Sin permisos para crear carátulas")
-    try:
-        pg = get_pg_connection()
-        cur = pg.cursor()
-        cur.execute(
-            """INSERT INTO caratula_derivacion
-                   (derivacion_id, nro_legajo, fecha_inicio, pasos, observaciones, creado_por)
-               VALUES (%s, %s, %s, %s::jsonb, %s, %s)
-               RETURNING id""",
-            (
-                datos["derivacion_id"],
-                _to_str(datos.get("nro_legajo")),
-                _to_fecha_sql(datos.get("fecha_inicio")),
-                json.dumps(datos.get("pasos", [])),
-                _to_str(datos.get("observaciones")),
-                uemail or str(uid),
-            ),
-        )
-        new_id = cur.fetchone()[0]
-        pg.commit()
-        cur.close()
-        pg.close()
-        return {"ok": True, "id": new_id}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.put("/caratulas/derivacion/{derivacion_id}")
-def actualizar_caratula_derivacion(derivacion_id: int, datos: dict = Body(...), token: str | None = Depends(oauth2_scheme)):
-    uid, uemail = _extraer_usuario(token)
-    if uid is None:
-        raise HTTPException(status_code=401, detail="No autenticado")
-    if _solo_lectura(_extraer_roles(token)):
-        raise HTTPException(status_code=403, detail="Sin permisos para editar carátulas")
-    try:
-        pg = get_pg_connection()
-        cur = pg.cursor()
-        cur.execute(
-            """UPDATE caratula_derivacion SET
-                   nro_legajo = %s,
-                   fecha_inicio = %s,
-                   pasos = %s::jsonb,
-                   observaciones = %s,
-                   actualizado_en = NOW(),
-                   actualizado_por = %s
-               WHERE derivacion_id = %s""",
-            (
-                _to_str(datos.get("nro_legajo")),
-                _to_fecha_sql(datos.get("fecha_inicio")),
-                json.dumps(datos.get("pasos", [])),
-                _to_str(datos.get("observaciones")),
-                uemail or str(uid),
-                derivacion_id,
-            ),
-        )
-        afectadas = cur.rowcount
-        pg.commit()
-        cur.close()
-        pg.close()
-        if afectadas == 0:
-            raise HTTPException(status_code=404, detail="Carátula no encontrada")
-        return {"ok": True}
-    except HTTPException:
-        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1854,7 +1794,7 @@ def crear_derivacion(datos: DerivacionRequest, token: str | None = Depends(oauth
                     diagnostico_tratamiento,
                     creado_por)
                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-               RETURNING id_derivacion""",
+               RETURNING id_derivacion, creado_en""",
             (
                 datos.mes,
                 _to_str(datos.nro_disposicion),
@@ -1872,7 +1812,14 @@ def crear_derivacion(datos: DerivacionRequest, token: str | None = Depends(oauth
                 uemail or str(uid),
             ),
         )
-        new_id = cur.fetchone()[0]
+        new_id, creado_en = cur.fetchone()
+        # Movimiento inicial por defecto de la carátula: "Ingreso al sector",
+        # con la fecha y hora en que se creó la derivación (sujeto a cambios).
+        cur.execute(
+            """INSERT INTO caratula_movimiento (derivacion_id, area, creado_en, agente)
+               VALUES (%s, %s, %s, %s)""",
+            (new_id, "Ingreso al sector", creado_en, uemail or str(uid)),
+        )
         cur.execute(
             """INSERT INTO derivacion_prestacion
                    (id_derivacion, destino, id_destino, id_cobertura, id_centro_medico, monto_prestacion)
