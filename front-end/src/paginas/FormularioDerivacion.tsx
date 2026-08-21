@@ -248,11 +248,12 @@ interface Props {
   modo: ModoFormulario;
   mes: string;                        // contexto de mes (título + body al guardar)
   derivacion?: Derivacion | null;     // datos a cargar en editar / ver
+  documentoInicial?: number | null;   // al crear: afiliado ya precargado (viene de Afiliados)
   onVolver: () => void;               // botón "volver"
   onGuardado?: () => void;            // se llama tras guardar OK
 }
 
-export default function FormularioDerivacion({ modo, mes, derivacion, onVolver, onGuardado }: Props) {
+export default function FormularioDerivacion({ modo, mes, derivacion, documentoInicial, onVolver, onGuardado }: Props) {
   const soloLectura = esSoloLectura();
   const soloVista = modo === 'ver';
   const roCls = soloVista ? ' dv-form-input--ro' : '';
@@ -334,6 +335,14 @@ export default function FormularioDerivacion({ modo, mes, derivacion, onVolver, 
   useEffect(() => {
     if (modo === 'crear' || !derivacion) return;
     cargarPatologias(Number(derivacion.afiliado_documento));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Al crear desde Afiliados: precarga el afiliado ya buscado (sin volver a buscar el DNI).
+  useEffect(() => {
+    if (modo === 'crear' && documentoInicial) {
+      cargarAfiliadoPorDocumento(documentoInicial);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -422,14 +431,12 @@ export default function FormularioDerivacion({ modo, mes, derivacion, onVolver, 
     updateForm('diagnostico', d.descripcion);
   }
 
-  async function seleccionarAfiliado(af: AfiliadoBusqueda) {
-    setResultadosAfiliado([]);
-    setBusquedaAfiliado('');
-
+  // Carga un afiliado (y sus patologías) al formulario a partir de su documento.
+  async function cargarAfiliadoPorDocumento(documento: number, nombreInicial?: string) {
     setForm(f => ({
       ...f,
-      afiliado_documento: af.documento,
-      afiliado_nombre: af.nombre_completo || `${af.apellido || ''} ${af.nombre || ''}`.trim(),
+      afiliado_documento: documento,
+      afiliado_nombre: nombreInicial ?? f.afiliado_nombre,
       afiliado_credencial: '',
       afiliado_edad: null,
       afiliado_sexo: '',
@@ -438,7 +445,7 @@ export default function FormularioDerivacion({ modo, mes, derivacion, onVolver, 
     }));
 
     try {
-      const res = await fetch(`${API}/afiliados/${af.documento}`);
+      const res = await fetch(`${API}/afiliados/${documento}`);
       if (!res.ok) return;
       const data = await res.json();
       if (data.error) return;
@@ -453,10 +460,19 @@ export default function FormularioDerivacion({ modo, mes, derivacion, onVolver, 
         afiliado_sexo: data.genero || '',
       }));
 
-      await cargarPatologias(af.documento);
+      await cargarPatologias(documento);
     } catch (e) {
       console.error('Error al cargar detalle del afiliado:', e);
     }
+  }
+
+  async function seleccionarAfiliado(af: AfiliadoBusqueda) {
+    setResultadosAfiliado([]);
+    setBusquedaAfiliado('');
+    await cargarAfiliadoPorDocumento(
+      af.documento,
+      af.nombre_completo || `${af.apellido || ''} ${af.nombre || ''}`.trim(),
+    );
   }
 
   function updateForm(field: keyof FormData, value: string) {

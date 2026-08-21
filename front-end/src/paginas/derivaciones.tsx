@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import NavBar from './NavBar';
 import logoSiglas from '../multimedia/logo-siglas.svg';
 import { fetchAuth, verificarSesion, API } from '../auth';
@@ -19,11 +20,20 @@ function mesActual(): string {
 
 export default function Derivaciones() {
   const soloLectura = esSoloLectura();
+  const location = useLocation();
+  // Si venimos desde Afiliados con "Crear derivación", arrancamos en el formulario
+  // de creación con ese afiliado ya cargado (sin tener que buscar el DNI). Se
+  // consume una sola vez: al volver a la lista o crear otra, se limpia.
+  const [docInicial, setDocInicial] = useState<number | null>(
+    (location.state as { crearDocumento?: number } | null)?.crearDocumento ?? null,
+  );
   const [derivaciones, setDerivaciones] = useState<Derivacion[]>([]);
   const [mesSeleccionado, setMesSeleccionado] = useState(mesActual());
   const [loading, setLoading] = useState(true);
 
-  const [vista, setVista] = useState<'lista' | 'crear' | 'editar' | 'caratula'>('lista');
+  const [vista, setVista] = useState<'lista' | 'crear' | 'editar' | 'caratula'>(
+    docInicial ? 'crear' : 'lista',
+  );
   const [derivSel, setDerivSel] = useState<Derivacion | null>(null);
   const [caratulaModo, setCaratulaModo] = useState<'ver' | 'movimiento'>('ver');
   const [deleteTarget, setDeleteTarget] = useState<Derivacion | null>(null);
@@ -53,6 +63,7 @@ export default function Derivaciones() {
 
   function irACrear() {
     setDerivSel(null);
+    setDocInicial(null);
     setVista('crear');
   }
 
@@ -68,6 +79,7 @@ export default function Derivaciones() {
   }
 
   function volverALista() {
+    setDocInicial(null);
     setVista('lista');
   }
 
@@ -128,6 +140,7 @@ export default function Derivaciones() {
           modo={vista}
           mes={vista === 'editar' && derivSel ? derivSel.mes : mesSeleccionado}
           derivacion={derivSel}
+          documentoInicial={vista === 'crear' ? docInicial : null}
           onVolver={volverALista}
           onGuardado={cargarDerivaciones}
         />

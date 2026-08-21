@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import NavBar from './NavBar';
 import { fetchAuth, verificarSesion, API } from '../auth';
 import './globales.css';
@@ -254,6 +255,7 @@ function esSoloLectura(): boolean {
 }
 
 export default function Afiliados() {
+  const navigate = useNavigate();
   const guardado = cargarEstado();
   const soloLectura = esSoloLectura();
   const [af, setAf] = useState<AfiliadoData>(guardado?.af ?? VACIO);
@@ -353,6 +355,11 @@ export default function Afiliados() {
     });
 
   function handleEditar() { setEditando(true); }
+
+  /* Va a Derivaciones y abre el formulario de creación ya con este afiliado cargado. */
+  function handleCrearDerivacion() {
+    navigate('/derivaciones', { state: { crearDocumento: af.documento } });
+  }
 
   /* Al presionar Guardar: si hubo cambios, pide confirmación; si no, sólo cierra. */
   function handleGuardar() {
@@ -655,12 +662,22 @@ export default function Afiliados() {
             </button>
           </div>
         ) : (
-          <button type="button" className="af-btn af-btn--outline" onClick={handleEditar}>
-            <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" width="15" height="15">
-              <path d="M13.586 3.586a2 2 0 1 1 2.828 2.828l-8.5 8.5a2 2 0 0 1-.828.5l-3 .75a.5.5 0 0 1-.621-.621l.75-3a2 2 0 0 1 .5-.828l8.5-8.5z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            Editar
-          </button>
+          <div className="af-toolbar-edit-btns">
+            {af.documento > 0 && (
+              <button type="button" className="af-btn af-btn--primary" onClick={handleCrearDerivacion}>
+                <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" width="15" height="15">
+                  <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+                </svg>
+                Crear derivación
+              </button>
+            )}
+            <button type="button" className="af-btn af-btn--outline" onClick={handleEditar}>
+              <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" width="15" height="15">
+                <path d="M13.586 3.586a2 2 0 1 1 2.828 2.828l-8.5 8.5a2 2 0 0 1-.828.5l-3 .75a.5.5 0 0 1-.621-.621l.75-3a2 2 0 0 1 .5-.828l8.5-8.5z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Editar
+            </button>
+          </div>
         ))}
       </div>
 
