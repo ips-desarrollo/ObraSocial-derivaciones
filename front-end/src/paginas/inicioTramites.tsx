@@ -1,10 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import NavBar from './NavBar';
 import logoSiglas from '../multimedia/logo-siglas.svg';
 import { fetchAuth, verificarSesion, API } from '../auth';
-import { Derivacion, formatFecha } from './FormularioDerivacion';
+import FormularioDerivacion, {
+  Derivacion,
+  formatFecha,
+  esSoloLectura,
+} from './FormularioDerivacion';
+import CaratulaDerivacion from './CaratulaDerivacion';
 import './globales.css';
+import './derivaciones.css';
 import './inicioTramites.css';
 
 function getUserName(): string {
@@ -19,11 +24,19 @@ function getUserName(): string {
 }
 
 export default function InicioTramites() {
-  const navigate = useNavigate();
+  const soloLectura = esSoloLectura();
   const [derivaciones, setDerivaciones] = useState<Derivacion[]>([]);
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState('');
   const [filtroMes, setFiltroMes] = useState('todos');
+
+  const [vista, setVista] = useState<'lista' | 'editar' | 'caratula'>('lista');
+  const [derivSel, setDerivSel] = useState<Derivacion | null>(null);
+  const [caratulaModo, setCaratulaModo] = useState<'ver' | 'movimiento'>('ver');
+  const [deleteTarget, setDeleteTarget] = useState<Derivacion | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [modalEliminar, setModalEliminar] = useState(false);
+  const [modalError, setModalError] = useState('');
 
   const nombre = getUserName();
 
@@ -47,6 +60,55 @@ export default function InicioTramites() {
   useEffect(() => {
     cargarDerivaciones();
   }, [cargarDerivaciones]);
+
+  function irAEditar(d: Derivacion) {
+    setDerivSel(d);
+    setVista('editar');
+  }
+
+  function irACaratula(d: Derivacion, modo: 'ver' | 'movimiento') {
+    setDerivSel(d);
+    setCaratulaModo(modo);
+    setVista('caratula');
+  }
+
+  function volverALista() {
+    setVista('lista');
+  }
+
+  function abrirEliminar(d: Derivacion) {
+    setDeleteTarget(d);
+    setModalError('');
+    setModalEliminar(true);
+  }
+
+  function cerrarModalEliminar() {
+    setModalEliminar(false);
+    setModalError('');
+    setSaving(false);
+  }
+
+  async function confirmarEliminar() {
+    if (!deleteTarget) return;
+    setSaving(true);
+    setModalError('');
+    try {
+      const res = await fetchAuth(`${API}/derivaciones/${deleteTarget.id}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setModalError(data.detail || 'Error al eliminar');
+        setSaving(false);
+        return;
+      }
+      cerrarModalEliminar();
+      cargarDerivaciones();
+    } catch (e: any) {
+      setModalError(e.message || 'Error de conexión');
+      setSaving(false);
+    }
+  }
 
   function generarOpcionesMeses(): string[] {
     const opciones: string[] = [];
@@ -78,20 +140,52 @@ export default function InicioTramites() {
     );
   });
 
+  /* ── Vista: Formulario (editar) ── */
+  if (vista === 'editar' && derivSel) {
+    return (
+      <>
+        <NavBar />
+        <FormularioDerivacion
+          modo="editar"
+          mes={derivSel.mes}
+          derivacion={derivSel}
+          onVolver={volverALista}
+          onGuardado={cargarDerivaciones}
+        />
+      </>
+    );
+  }
+
+  /* ── Vista: Carátula de derivación ── */
+  if (vista === 'caratula' && derivSel) {
+    return (
+      <>
+        <NavBar />
+        <CaratulaDerivacion
+          derivacionId={derivSel.id}
+          nombreAfiliado={derivSel.afiliado_nombre || '-'}
+          onVolver={volverALista}
+          modoInicial={caratulaModo}
+        />
+      </>
+    );
+  }
+
+  /* ── Vista: Listado ── */
   return (
     <>
       <NavBar />
-      <div className="it-page">
-        <div className="it-toolbar">
+      <div className="dv-page">
+        <div className="dv-toolbar">
           {nombre && (
             <span className="it-welcome">
               Hola, <strong>{nombre}</strong>
             </span>
           )}
-          <div className="it-toolbar-spacer" />
+          <div className="dv-toolbar-spacer" />
 
           <select
-            className="it-filter-select"
+            className="dv-mes-select"
             value={filtroMes}
             onChange={(e) => setFiltroMes(e.target.value)}
           >
@@ -110,26 +204,26 @@ export default function InicioTramites() {
           />
         </div>
 
-        <div className="it-panel">
-          <div className="it-header">
-            <img src={logoSiglas} alt="IPS" className="it-header-logo" />
-            <h1 className="it-header-title">Últimas Derivaciones</h1>
-            <span className="it-header-count">
+        <div className="dv-panel">
+          <div className="dv-header">
+            <img src={logoSiglas} alt="IPS" className="dv-header-logo" />
+            <h1 className="dv-header-title">Últimas Derivaciones</h1>
+            <span className="dv-header-count">
               {filtradas.length} derivación{filtradas.length !== 1 ? 'es' : ''}
             </span>
           </div>
 
-          <div className="it-table-wrap">
+          <div className="dv-table-wrap">
             {loading ? (
-              <p className="it-empty">Cargando derivaciones...</p>
+              <p className="dv-empty">Cargando derivaciones...</p>
             ) : filtradas.length === 0 ? (
-              <p className="it-empty">
+              <p className="dv-empty">
                 {busqueda.trim()
                   ? 'No se encontraron derivaciones con esa búsqueda'
                   : 'No hay derivaciones para mostrar'}
               </p>
             ) : (
-              <table className="it-table">
+              <table className="dv-table">
                 <thead>
                   <tr>
                     <th>N° Disp.</th>
@@ -137,20 +231,39 @@ export default function InicioTramites() {
                     <th>Afiliado</th>
                     <th>Destino</th>
                     <th>Fecha</th>
+                    {!soloLectura && <th>Acciones</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {filtradas.map((d) => (
-                    <tr key={d.id} onClick={() => navigate('/derivaciones')}>
+                    <tr key={d.id}>
                       <td>
                         {d.nro_disposicion
-                          ? <span className="it-disp-badge">{d.nro_disposicion}</span>
-                          : <span className="it-cell-empty">-</span>}
+                          ? <span className="dv-disp-badge">{d.nro_disposicion}</span>
+                          : <span className="dv-cell-empty">-</span>}
                       </td>
-                      <td className="it-dni-cell">{d.afiliado_documento}</td>
-                      <td className="it-name-cell">{d.afiliado_nombre || '-'}</td>
+                      <td className="dv-dni-cell">{d.afiliado_documento}</td>
+                      <td className="dv-name-cell">{d.afiliado_nombre || '-'}</td>
                       <td className="it-destino-cell">{d.destino || '-'}</td>
-                      <td className="it-fecha-cell">{formatFecha(d.fecha)}</td>
+                      <td className="dv-fecha-cell">{formatFecha(d.fecha)}</td>
+                      {!soloLectura && (
+                        <td>
+                          <div className="dv-actions">
+                            <button className="dv-btn dv-btn--outline dv-btn--sm" onClick={() => irACaratula(d, 'ver')}>
+                              Ver carátula
+                            </button>
+                            <button className="dv-btn dv-btn--outline dv-btn--sm" onClick={() => irACaratula(d, 'movimiento')}>
+                              Movimiento
+                            </button>
+                            <button className="dv-btn dv-btn--outline dv-btn--sm" onClick={() => irAEditar(d)}>
+                              Editar
+                            </button>
+                            <button className="dv-btn dv-btn--danger dv-btn--sm" onClick={() => abrirEliminar(d)}>
+                              Eliminar
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -159,6 +272,31 @@ export default function InicioTramites() {
           </div>
         </div>
       </div>
+
+      {/* Modal Eliminar (solo confirmación) */}
+      {modalEliminar && deleteTarget && (
+        <div className="dv-modal-overlay" onClick={cerrarModalEliminar}>
+          <div className="dv-modal" onClick={(e) => e.stopPropagation()}>
+            <h2 className="dv-modal-title">Eliminar Derivación</h2>
+            <p className="dv-confirm-text">
+              ¿Estás seguro de que querés eliminar la derivación de{' '}
+              <span className="dv-confirm-name">{deleteTarget.afiliado_nombre}</span>
+              {deleteTarget.nro_disposicion ? ` (Disp. ${deleteTarget.nro_disposicion})` : ''}?
+              <br />
+              Esta acción no se puede deshacer.
+            </p>
+            {modalError && <p className="dv-form-error">{modalError}</p>}
+            <div className="dv-modal-btns">
+              <button className="dv-btn dv-btn--outline" onClick={cerrarModalEliminar}>
+                Cancelar
+              </button>
+              <button className="dv-btn dv-btn--danger" onClick={confirmarEliminar} disabled={saving}>
+                {saving ? 'Eliminando...' : 'Eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

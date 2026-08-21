@@ -8,6 +8,7 @@ import FormularioDerivacion, {
   formatFecha,
   esSoloLectura,
 } from './FormularioDerivacion';
+import CaratulaDerivacion from './CaratulaDerivacion';
 import './globales.css';
 import './derivaciones.css';
 
@@ -22,8 +23,9 @@ export default function Derivaciones() {
   const [mesSeleccionado, setMesSeleccionado] = useState(mesActual());
   const [loading, setLoading] = useState(true);
 
-  const [vista, setVista] = useState<'lista' | 'crear' | 'editar'>('lista');
+  const [vista, setVista] = useState<'lista' | 'crear' | 'editar' | 'caratula'>('lista');
   const [derivSel, setDerivSel] = useState<Derivacion | null>(null);
+  const [caratulaModo, setCaratulaModo] = useState<'ver' | 'movimiento'>('ver');
   const [deleteTarget, setDeleteTarget] = useState<Derivacion | null>(null);
   const [saving, setSaving] = useState(false);
   const [modalEliminar, setModalEliminar] = useState(false);
@@ -35,7 +37,9 @@ export default function Derivaciones() {
     try {
       const res = await fetchAuth(`${API}/derivaciones?mes=${mesSeleccionado}`);
       if (!res.ok) throw new Error('Error al cargar derivaciones');
-      setDerivaciones(await res.json());
+      const data: Derivacion[] = await res.json();
+      data.sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''));
+      setDerivaciones(data);
     } catch (e: any) {
       console.error(e);
     } finally {
@@ -55,6 +59,12 @@ export default function Derivaciones() {
   function irAEditar(d: Derivacion) {
     setDerivSel(d);
     setVista('editar');
+  }
+
+  function irACaratula(d: Derivacion, modo: 'ver' | 'movimiento') {
+    setDerivSel(d);
+    setCaratulaModo(modo);
+    setVista('caratula');
   }
 
   function volverALista() {
@@ -98,7 +108,7 @@ export default function Derivaciones() {
   function generarOpcionesMeses(): string[] {
     const opciones: string[] = [];
     const hoy = new Date();
-    for (let i = 11; i >= -1; i--) {
+    for (let i = 12; i >= -12; i--) {
       const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
       opciones.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
     }
@@ -120,6 +130,21 @@ export default function Derivaciones() {
           derivacion={derivSel}
           onVolver={volverALista}
           onGuardado={cargarDerivaciones}
+        />
+      </>
+    );
+  }
+
+  /* ── Vista: Carátula de derivación ── */
+  if (vista === 'caratula' && derivSel) {
+    return (
+      <>
+        <NavBar />
+        <CaratulaDerivacion
+          derivacionId={derivSel.id}
+          nombreAfiliado={derivSel.afiliado_nombre || '-'}
+          onVolver={volverALista}
+          modoInicial={caratulaModo}
         />
       </>
     );
@@ -187,6 +212,12 @@ export default function Derivaciones() {
                       {!soloLectura && (
                         <td>
                           <div className="dv-actions">
+                            <button className="dv-btn dv-btn--outline dv-btn--sm" onClick={() => irACaratula(d, 'ver')}>
+                              Ver carátula
+                            </button>
+                            <button className="dv-btn dv-btn--outline dv-btn--sm" onClick={() => irACaratula(d, 'movimiento')}>
+                              Movimiento
+                            </button>
                             <button className="dv-btn dv-btn--outline dv-btn--sm" onClick={() => irAEditar(d)}>
                               Editar
                             </button>

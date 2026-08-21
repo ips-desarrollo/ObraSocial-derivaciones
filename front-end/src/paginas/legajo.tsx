@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import NavBar from './NavBar';
 import logoSiglas from '../multimedia/logo-siglas.svg';
 import { fetchAuth, API } from '../auth';
@@ -22,6 +22,13 @@ interface Afiliado {
   genero: string | null;
 }
 
+interface LegajoReciente {
+  documento: string;
+  nombre: string;
+  cantidad: number;
+  ultima: string | null;
+}
+
 export default function Legajo() {
   const soloLectura = esSoloLectura();
   const [documento, setDocumento] = useState('');
@@ -31,9 +38,27 @@ export default function Legajo() {
   const [error, setError] = useState('');
   const [buscado, setBuscado] = useState(false);
   const [detalle, setDetalle] = useState<{ modo: 'ver' | 'editar'; deriv: Derivacion } | null>(null);
+  const [recientes, setRecientes] = useState<LegajoReciente[]>([]);
 
-  async function buscarLegajo() {
-    const doc = documento.trim();
+  async function cargarRecientes() {
+    try {
+      const res = await fetchAuth(`${API}/legajos/recientes`);
+      if (res.ok) {
+        const data = await res.json();
+        setRecientes(Array.isArray(data) ? data : []);
+      }
+    } catch {
+      /* silencioso: la lista de recientes es opcional */
+    }
+  }
+
+  useEffect(() => {
+    cargarRecientes();
+  }, []);
+
+  async function buscarLegajo(docParam?: string) {
+    const doc = (docParam ?? documento).trim();
+    if (docParam !== undefined) setDocumento(doc);
     if (!doc) {
       setError('Ingresá un número de documento');
       return;
@@ -85,7 +110,7 @@ export default function Legajo() {
           mes={detalle.deriv.mes}
           derivacion={detalle.deriv}
           onVolver={() => setDetalle(null)}
-          onGuardado={buscarLegajo}
+          onGuardado={() => { buscarLegajo(); cargarRecientes(); }}
         />
       </>
     );
@@ -109,7 +134,7 @@ export default function Legajo() {
                   placeholder="Buscar legajo por documento..."
                   inputMode="numeric"
                 />
-                <button className="lg-btn lg-btn--search" onClick={buscarLegajo} disabled={loading}>
+                <button className="lg-btn lg-btn--search" onClick={() => buscarLegajo()} disabled={loading}>
                   {loading ? 'Buscando...' : 'Buscar'}
                 </button>
               </div>
@@ -120,7 +145,39 @@ export default function Legajo() {
             {error && <p className="lg-msg lg-msg--error">{error}</p>}
 
             {!buscado && !error && (
-              <p className="lg-empty">Ingresá un documento para ver el legajo del afiliado.</p>
+              recientes.length === 0 ? (
+                <p className="lg-empty">Ingresá un documento para ver el legajo del afiliado.</p>
+              ) : (
+                <div className="lg-recientes">
+                  <h3 className="lg-recientes-title">Últimos legajos modificados</h3>
+                  <ul className="lg-recientes-list">
+                    {recientes.map((r) => (
+                      <li key={r.documento}>
+                        <button
+                          className="lg-reciente-item"
+                          onClick={() => buscarLegajo(r.documento)}
+                        >
+                          <span className="lg-reciente-avatar">
+                            {(r.nombre || '?').charAt(0).toUpperCase()}
+                          </span>
+                          <span className="lg-reciente-info">
+                            <span className="lg-reciente-name">{r.nombre || '-'}</span>
+                            <span className="lg-reciente-meta">
+                              <span>DNI {r.documento}</span>
+                              <span>{r.cantidad} derivación{r.cantidad !== 1 ? 'es' : ''}</span>
+                            </span>
+                          </span>
+                          {r.ultima && (
+                            <span className="lg-reciente-fecha">
+                              {new Date(r.ultima).toLocaleDateString('es-AR')}
+                            </span>
+                          )}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )
             )}
 
             {buscado && !loading && (

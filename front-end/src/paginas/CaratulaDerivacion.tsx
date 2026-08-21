@@ -239,8 +239,8 @@ export default function CaratulaDerivacion({
                 </p>
               ) : (
                 <ul className="cl-timeline">
-                  {movimientos.map((m, idx) => {
-                    const esActual = idx === movimientos.length - 1;
+                  {movimientos.slice().reverse().map((m, idx) => {
+                    const esActual = idx === 0;
                     return (
                       <li key={m.id} className={`cl-tl-item${esActual ? ' cl-tl-item--actual' : ''}`}>
                         <div className="cl-tl-dot" />

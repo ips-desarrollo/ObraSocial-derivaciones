@@ -1169,6 +1169,7 @@ def _ensure_derivacion_tables():
         pg.commit()
         for col, defn in [
             ("diagnostico_tratamiento", "TEXT"),
+            ("actualizado_en", "TIMESTAMP DEFAULT NOW()"),
         ]:
             try:
                 cur.execute(f"ALTER TABLE derivacion ADD COLUMN IF NOT EXISTS {col} {defn}")
@@ -1750,6 +1751,43 @@ def listar_derivaciones(mes: str = "", documento: str = "", token: str | None = 
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/legajos/recientes")
+def listar_legajos_recientes(token: str | None = Depends(oauth2_scheme)):
+    """Últimos legajos (afiliados) modificados, de más nuevo a más viejo."""
+    uid, _ = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    try:
+        pg = get_pg_connection()
+        cur = pg.cursor()
+        cur.execute(
+            """SELECT afiliado_documento,
+                      MAX(afiliado_nombre) AS afiliado_nombre,
+                      COUNT(*) AS cantidad,
+                      MAX(COALESCE(actualizado_en, creado_en)) AS ultima
+               FROM derivacion
+               GROUP BY afiliado_documento
+               ORDER BY ultima DESC
+               LIMIT 10"""
+        )
+        rows = cur.fetchall()
+        cur.close()
+        pg.close()
+        return [
+            {
+                "documento": r[0],
+                "nombre": r[1],
+                "cantidad": r[2],
+                "ultima": r[3].isoformat() if r[3] else None,
+            }
+            for r in rows
+        ]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/derivaciones/meses")
 def listar_meses_derivaciones(token: str | None = Depends(oauth2_scheme)):
     uid, _ = _extraer_usuario(token)
@@ -1792,8 +1830,8 @@ def crear_derivacion(datos: DerivacionRequest, token: str | None = Depends(oauth
                     afiliado_edad, afiliado_sexo,
                     tipo_patologia, diagnostico, fecha_turno,
                     diagnostico_tratamiento,
-                    creado_por)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    creado_por, actualizado_en)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
                RETURNING id_derivacion, creado_en""",
             (
                 datos.mes,
@@ -1874,7 +1912,7 @@ def actualizar_derivacion(derivacion_id: int, datos: DerivacionRequest, token: s
                    afiliado_documento=%s, afiliado_nombre=%s, afiliado_credencial=%s,
                    afiliado_edad=%s, afiliado_sexo=%s,
                    tipo_patologia=%s, diagnostico=%s, fecha_turno=%s,
-                   diagnostico_tratamiento=%s
+                   diagnostico_tratamiento=%s, actualizado_en=NOW()
                WHERE id_derivacion=%s""",
             (
                 datos.mes,
