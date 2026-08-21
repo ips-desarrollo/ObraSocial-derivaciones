@@ -2069,6 +2069,163 @@ def diagnosticos_todos():
         return {"error": str(e)}
 
 
+@app.get("/patologias/buscar")
+def patologias_buscar(q: str = "", limit: int = 15):
+    """Busca patologías por nombre (LIKE) y devuelve sólo las primeras N.
+
+    Evita bajar toda la tabla PATOLOGIAS al front (que traba el navegador):
+    el usuario escribe texto y el servidor filtra + limita.
+    """
+    q = (q or "").strip()
+    if len(q) < 2:
+        return []
+    limit = max(1, min(int(limit or 15), 50))
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            f"""SELECT TOP {limit} p.PAT_ID, p.PAT_NOMBRE, p.PAT_CIE_CLAVE, d.descripcion
+               FROM PATOLOGIAS p
+               LEFT JOIN CIE_diagnosticos d ON p.PAT_CIE_CLAVE = d.codigo
+               WHERE p.PAT_NOMBRE LIKE ?
+               ORDER BY p.PAT_NOMBRE""",
+            ("%" + q + "%",),
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+        return [
+            {
+                "pat_id": _num(r[0]),
+                "nombre": (r[1] or "").strip(),
+                "cie_clave": (r[2] or "").strip(),
+                "diagnostico": (r[3] or "").strip(),
+            }
+            for r in rows
+        ]
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/diagnosticos/buscar")
+def diagnosticos_buscar(q: str = "", limit: int = 15):
+    """Busca diagnósticos CIE por código o descripción (LIKE), TOP N.
+
+    Definido antes que /diagnosticos/{cie_clave} para que "buscar" no
+    sea interpretado como una clave CIE.
+    """
+    q = (q or "").strip()
+    if len(q) < 2:
+        return []
+    limit = max(1, min(int(limit or 15), 50))
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            f"""SELECT TOP {limit} codigo, descripcion
+               FROM CIE_diagnosticos
+               WHERE codigo LIKE ? OR descripcion LIKE ?
+               ORDER BY codigo""",
+            ("%" + q + "%", "%" + q + "%"),
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+        return [
+            {
+                "codigo": (r[0] or "").strip(),
+                "descripcion": (r[1] or "").strip(),
+            }
+            for r in rows
+        ]
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/patologias/lista")
+def patologias_lista(q: str = "", page: int = 1, limit: int = 10):
+    """Lista paginada de patologías (para el popup: ver todas o filtrar).
+
+    Devuelve un bloque de `limit` filas más el total, para poder pasar de
+    página en página sin bajar toda la tabla de una.
+    """
+    q = (q or "").strip()
+    page = max(1, int(page or 1))
+    limit = max(1, min(int(limit or 10), 50))
+    offset = (page - 1) * limit
+    like = "%" + q + "%"
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM PATOLOGIAS WHERE PAT_NOMBRE LIKE ?", (like,))
+        total = int(cursor.fetchone()[0] or 0)
+        cursor.execute(
+            """SELECT p.PAT_ID, p.PAT_NOMBRE, p.PAT_CIE_CLAVE, d.descripcion
+               FROM PATOLOGIAS p
+               LEFT JOIN CIE_diagnosticos d ON p.PAT_CIE_CLAVE = d.codigo
+               WHERE p.PAT_NOMBRE LIKE ?
+               ORDER BY p.PAT_NOMBRE
+               OFFSET ? ROWS FETCH NEXT ? ROWS ONLY""",
+            (like, offset, limit),
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+        items = [
+            {
+                "pat_id": _num(r[0]),
+                "nombre": (r[1] or "").strip(),
+                "cie_clave": (r[2] or "").strip(),
+                "diagnostico": (r[3] or "").strip(),
+            }
+            for r in rows
+        ]
+        pages = (total + limit - 1) // limit if total else 0
+        return {"items": items, "total": total, "page": page, "pages": pages}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/diagnosticos/lista")
+def diagnosticos_lista(q: str = "", page: int = 1, limit: int = 10):
+    """Lista paginada de diagnósticos CIE (para el popup). Filtra por código
+    o descripción cuando hay texto; sin texto devuelve todos, paginados.
+
+    Definido antes que /diagnosticos/{cie_clave} para evitar la colisión.
+    """
+    q = (q or "").strip()
+    page = max(1, int(page or 1))
+    limit = max(1, min(int(limit or 10), 50))
+    offset = (page - 1) * limit
+    like = "%" + q + "%"
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT COUNT(*) FROM CIE_diagnosticos WHERE codigo LIKE ? OR descripcion LIKE ?",
+            (like, like),
+        )
+        total = int(cursor.fetchone()[0] or 0)
+        cursor.execute(
+            """SELECT codigo, descripcion
+               FROM CIE_diagnosticos
+               WHERE codigo LIKE ? OR descripcion LIKE ?
+               ORDER BY codigo
+               OFFSET ? ROWS FETCH NEXT ? ROWS ONLY""",
+            (like, like, offset, limit),
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+        items = [
+            {
+                "codigo": (r[0] or "").strip(),
+                "descripcion": (r[1] or "").strip(),
+            }
+            for r in rows
+        ]
+        pages = (total + limit - 1) // limit if total else 0
+        return {"items": items, "total": total, "page": page, "pages": pages}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 @app.get("/patologias/afiliado/{documento}")
 def patologias_afiliado(documento: int):
     try:

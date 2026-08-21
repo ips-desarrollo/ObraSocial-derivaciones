@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import SelectConCarga from './SelectConCarga';
+import BuscadorAsync from './BuscadorAsync';
 import CaratulaDerivacion from './CaratulaDerivacion';
 import { fetchAuth, API } from '../auth';
 import './derivaciones.css';
@@ -266,11 +267,6 @@ export default function FormularioDerivacion({ modo, mes, derivacion, onVolver, 
   const [busquedaAfiliado, setBusquedaAfiliado] = useState('');
   const [resultadosAfiliado, setResultadosAfiliado] = useState<AfiliadoBusqueda[]>([]);
 
-  const [patologiasAfiliado, setPatologiasAfiliado] = useState<Patologia[]>([]);
-  const [diagnosticosDisponibles, setDiagnosticosDisponibles] = useState<Diagnostico[]>([]);
-  const [todasPatologias, setTodasPatologias] = useState<Patologia[]>([]);
-  const [todosDiagnosticos, setTodosDiagnosticos] = useState<Diagnostico[]>([]);
-  const [cieClave, setCieClave] = useState('');
 
   const [coberturas, setCoberturas] = useState<OpcionGuia[]>([]);
   const [tiposTraslado, setTiposTraslado] = useState<OpcionGuia[]>([]);
@@ -302,29 +298,38 @@ export default function FormularioDerivacion({ modo, mes, derivacion, onVolver, 
     cargarGuias();
   }, []);
 
-  // Carga de todas las patologías y diagnósticos (tablas completas de SQL Server).
-  useEffect(() => {
-    async function cargarCatalogosPatologia() {
-      try {
-        const [resPat, resDiag] = await Promise.all([
-          fetch(`${API}/patologias`),
-          fetch(`${API}/diagnosticos`),
-        ]);
-        if (resPat.ok) {
-          const data = await resPat.json();
-          if (Array.isArray(data)) setTodasPatologias(data);
-        }
-        if (resDiag.ok) {
-          const data = await resDiag.json();
-          if (Array.isArray(data)) setTodosDiagnosticos(data);
-        }
-      } catch {}
-    }
-    cargarCatalogosPatologia();
+  // Buscadores asíncronos: en vez de bajar toda la tabla (miles de filas) al
+  // navegador, el servidor filtra por texto y devuelve sólo las primeras N.
+  const buscarPatologias = useCallback(async (q: string): Promise<Patologia[]> => {
+    const res = await fetch(`${API}/patologias/buscar?q=${encodeURIComponent(q)}&limit=15`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
   }, []);
 
-  // Al abrir en editar/ver: carga diagnósticos del tipo y patologías del afiliado
-  // para que se vean los valores seleccionados.
+  const buscarDiagnosticos = useCallback(async (q: string): Promise<Diagnostico[]> => {
+    const res = await fetch(`${API}/diagnosticos/buscar?q=${encodeURIComponent(q)}&limit=15`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  }, []);
+
+  // Lista paginada (para el popup "Ver todas"): bloques de 10 navegables.
+  const listarPatologias = useCallback(async (q: string, page: number) => {
+    const res = await fetch(`${API}/patologias/lista?q=${encodeURIComponent(q)}&page=${page}&limit=10`);
+    if (!res.ok) return { items: [], total: 0, pages: 0 };
+    const data = await res.json();
+    return data && Array.isArray(data.items) ? data : { items: [], total: 0, pages: 0 };
+  }, []);
+
+  const listarDiagnosticos = useCallback(async (q: string, page: number) => {
+    const res = await fetch(`${API}/diagnosticos/lista?q=${encodeURIComponent(q)}&page=${page}&limit=10`);
+    if (!res.ok) return { items: [], total: 0, pages: 0 };
+    const data = await res.json();
+    return data && Array.isArray(data.items) ? data : { items: [], total: 0, pages: 0 };
+  }, []);
+
+  // Al abrir en editar/ver: carga patologías del afiliado para el contexto.
   useEffect(() => {
     if (modo === 'crear' || !derivacion) return;
     cargarPatologias(Number(derivacion.afiliado_documento));
@@ -391,7 +396,6 @@ export default function FormularioDerivacion({ modo, mes, derivacion, onVolver, 
       const data = await res.json();
       if (data && data.error) return;
       if (Array.isArray(data)) {
-        setPatologiasAfiliado(data);
         // Solo autocompletamos patología/diagnóstico al crear (afiliado nuevo).
         if (modo === 'crear' && data.length > 0) {
           const primera = data[0];
@@ -400,10 +404,6 @@ export default function FormularioDerivacion({ modo, mes, derivacion, onVolver, 
             tipo_patologia: primera.nombre || '',
             diagnostico: primera.diagnostico || '',
           }));
-          if (primera.cie_clave) {
-            setCieClave(primera.cie_clave);
-            await cargarDiagnosticos(primera.cie_clave);
-          }
         }
       }
     } catch (e) {
@@ -411,43 +411,19 @@ export default function FormularioDerivacion({ modo, mes, derivacion, onVolver, 
     }
   }
 
-  async function cargarDiagnosticos(clave: string) {
-    if (!clave) {
-      setDiagnosticosDisponibles([]);
-      return;
-    }
-    try {
-      const res = await fetch(`${API}/diagnosticos/${encodeURIComponent(clave)}`);
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data && data.error) return;
-      if (Array.isArray(data)) setDiagnosticosDisponibles(data);
-    } catch (e) {
-      console.error('Error al cargar diagnósticos:', e);
-    }
+  // Elegir una patología del buscador: setea el nombre y autocompleta el
+  // diagnóstico sugerido de esa patología (si tiene).
+  function seleccionarPatologia(pat: Patologia) {
+    setForm(f => ({ ...f, tipo_patologia: pat.nombre, diagnostico: pat.diagnostico || '' }));
   }
 
-  function seleccionarPatologia(nombre: string) {
-    const pat =
-      patologiasAfiliado.find(p => p.nombre === nombre) ||
-      todasPatologias.find(p => p.nombre === nombre);
-    const diagDesc = pat?.diagnostico || '';
-    setForm(f => ({ ...f, tipo_patologia: nombre, diagnostico: diagDesc }));
-    setDiagnosticosDisponibles([]);
-    if (pat && pat.cie_clave) {
-      setCieClave(pat.cie_clave);
-      cargarDiagnosticos(pat.cie_clave);
-    } else {
-      setCieClave('');
-    }
+  function seleccionarDiagnostico(d: Diagnostico) {
+    updateForm('diagnostico', d.descripcion);
   }
 
   async function seleccionarAfiliado(af: AfiliadoBusqueda) {
     setResultadosAfiliado([]);
     setBusquedaAfiliado('');
-    setPatologiasAfiliado([]);
-    setDiagnosticosDisponibles([]);
-    setCieClave('');
 
     setForm(f => ({
       ...f,
@@ -506,7 +482,10 @@ export default function FormularioDerivacion({ modo, mes, derivacion, onVolver, 
     setFormError('');
 
     const body = {
-      mes,
+      // El mes se deriva de la fecha de la derivación (no del contexto en que
+      // se abrió el formulario): así una derivación con fecha 02/01/2027 cae en
+      // Enero 2027 al buscar mes a mes, aunque se cargue en Agosto 2026.
+      mes: form.fecha ? form.fecha.slice(0, 7) : mes,
       nro_disposicion: form.nro_disposicion || null,
       fecha: form.fecha || null,
       afiliado_documento: String(form.afiliado_documento),
@@ -581,87 +560,74 @@ export default function FormularioDerivacion({ modo, mes, derivacion, onVolver, 
 
   return (
     <div className="dv-page">
-      <div className="dv-toolbar">
-        <button className="dv-btn dv-btn--outline" onClick={onVolver}>
-          ← Volver
-        </button>
-        <div className="dv-toolbar-spacer" />
-        <h1 className="dv-toolbar-title">{titulo}</h1>
-        <div className="dv-toolbar-spacer" />
-        <span className="dv-toolbar-mes">{formatMes(mes)}</span>
-      </div>
-
       <div className="dv-panel">
-        {/* ── Header grande: búsqueda + nombre centrado + datos afiliado + patología ── */}
+        {/* ── Header unificado: barra + búsqueda + afiliado ── */}
         <div className="dv-header dv-header--expanded">
-          {/* Búsqueda (solo en crear/editar) */}
-          {!soloVista && (
-            <div className="dv-header-search-wrap dv-search-wrap">
-              <div className="dv-search-row">
-                <input
-                  className="dv-header-search-input"
-                  value={busquedaAfiliado}
-                  onChange={(e) => setBusquedaAfiliado(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') buscarAfiliado(); }}
-                  placeholder="Buscar afiliado por nombre o DNI..."
-                />
-                <button className="dv-btn dv-btn--search" onClick={() => buscarAfiliado()} type="button">
-                  Buscar
-                </button>
+          {/* Barra superior: volver + búsqueda + modo, todo a la misma altura */}
+          <div className="dv-header-top">
+            <button className="dv-header-volver" onClick={onVolver}>
+              ← Volver
+            </button>
+
+            {!soloVista && (
+              <div className="dv-header-search-wrap dv-search-wrap">
+                <div className="dv-search-row">
+                  <input
+                    className="dv-header-search-input"
+                    value={busquedaAfiliado}
+                    onChange={(e) => setBusquedaAfiliado(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') buscarAfiliado(); }}
+                    placeholder="Buscar afiliado por nombre o DNI..."
+                  />
+                  <button className="dv-btn dv-btn--search" onClick={() => buscarAfiliado()} type="button">
+                    Buscar
+                  </button>
+                </div>
+                {resultadosAfiliado.length > 0 && (
+                  <div className="dv-search-results">
+                    {resultadosAfiliado.map((af) => (
+                      <div
+                        key={af.documento}
+                        className="dv-search-item"
+                        onClick={() => seleccionarAfiliado(af)}
+                      >
+                        <span className="dv-search-item-name">{af.nombre_completo}</span>
+                        <span className="dv-search-item-dni">DNI {af.documento}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              {resultadosAfiliado.length > 0 && (
-                <div className="dv-search-results">
-                  {resultadosAfiliado.map((af) => (
-                    <div
-                      key={af.documento}
-                      className="dv-search-item"
-                      onClick={() => seleccionarAfiliado(af)}
-                    >
-                      <span className="dv-search-item-name">{af.nombre_completo}</span>
-                      <span className="dv-search-item-dni">DNI {af.documento}</span>
-                    </div>
-                  ))}
+            )}
+
+            <span className="dv-header-modo">{titulo}</span>
+          </div>
+
+          {/* Nombre del afiliado + datos, todo en una misma línea */}
+          {(form.afiliado_nombre || soloVista || form.afiliado_documento) && (
+            <div className="dv-header-afiliado">
+              <span className="dv-header-afiliado-name">{form.afiliado_nombre || '-'}</span>
+
+              {form.afiliado_documento && (
+                <div className="dv-header-datos">
+                  <div className="dv-header-dato">
+                    <span className="dv-header-dato-label">DNI</span>
+                    <span className="dv-header-dato-value">{form.afiliado_documento ?? '-'}</span>
+                  </div>
+                  <div className="dv-header-dato">
+                    <span className="dv-header-dato-label">Credencial</span>
+                    <span className="dv-header-dato-value">{form.afiliado_credencial || '-'}</span>
+                  </div>
+                  <div className="dv-header-dato">
+                    <span className="dv-header-dato-label">Edad</span>
+                    <span className="dv-header-dato-value">{form.afiliado_edad ?? '-'}</span>
+                  </div>
+                  <div className="dv-header-dato">
+                    <span className="dv-header-dato-label">Sexo</span>
+                    <span className="dv-header-dato-value">{form.afiliado_sexo || '-'}</span>
+                  </div>
                 </div>
               )}
-            </div>
-          )}
-
-          {/* Nombre centrado */}
-          {(form.afiliado_nombre || soloVista) && (
-            <div className="dv-header-nombre-center">
-              <span className="dv-header-afiliado-name">
-                {form.afiliado_nombre || '-'}
-                {form.afiliado_documento ? ` — DNI ${form.afiliado_documento}` : ''}
-              </span>
-            </div>
-          )}
-
-          {/* Datos del afiliado + Patología cargada en el header */}
-          {form.afiliado_documento && (
-            <div className="dv-header-info">
-              {/* Datos del Afiliado */}
-              <div className="dv-header-info-block">
-                <p className="dv-header-info-title">Datos del Afiliado</p>
-                <div className="dv-header-info-grid">
-                  <div className="dv-header-info-field">
-                    <span className="dv-header-info-label">DNI</span>
-                    <span className="dv-header-info-value">{form.afiliado_documento ?? '-'}</span>
-                  </div>
-                  <div className="dv-header-info-field">
-                    <span className="dv-header-info-label">Credencial</span>
-                    <span className="dv-header-info-value">{form.afiliado_credencial || '-'}</span>
-                  </div>
-                  <div className="dv-header-info-field">
-                    <span className="dv-header-info-label">Edad</span>
-                    <span className="dv-header-info-value">{form.afiliado_edad ?? '-'}</span>
-                  </div>
-                  <div className="dv-header-info-field">
-                    <span className="dv-header-info-label">Sexo</span>
-                    <span className="dv-header-info-value">{form.afiliado_sexo || '-'}</span>
-                  </div>
-                </div>
-              </div>
-
             </div>
           )}
         </div>
@@ -744,45 +710,47 @@ export default function FormularioDerivacion({ modo, mes, derivacion, onVolver, 
               <p className="dv-form-section">Patología cargada</p>
 
               <div className="dv-form-patologia">
-                {/* Selector de patología: toda la tabla PATOLOGIAS de SQL Server */}
-                {!soloVista && (
+                {/* Patología: búsqueda por texto contra el servidor (trae de a 15) */}
+                {!soloVista ? (
+                  <BuscadorAsync<Patologia>
+                    className="dv-fp-select"
+                    label="Patología"
+                    value={form.tipo_patologia}
+                    buscar={buscarPatologias}
+                    listar={listarPatologias}
+                    getKey={(p) => String(p.pat_id)}
+                    getTexto={(p) => p.nombre}
+                    getDetalle={(p) => p.cie_clave}
+                    onSelect={seleccionarPatologia}
+                    onLimpiar={() => setForm(f => ({ ...f, tipo_patologia: '' }))}
+                    placeholder="Buscar patología por nombre..."
+                  />
+                ) : (
                   <div className="dv-form-field dv-fp-select">
                     <label className="dv-form-label">Patología</label>
-                    <select
-                      className="dv-form-input"
-                      value={form.tipo_patologia}
-                      onChange={(e) => seleccionarPatologia(e.target.value)}
-                    >
-                      <option value="">— Seleccionar —</option>
-                      {todasPatologias.map((p) => (
-                        <option key={p.pat_id} value={p.nombre}>{p.nombre}</option>
-                      ))}
-                    </select>
+                    <input className={`dv-form-input${roCls}`} value={form.tipo_patologia} readOnly placeholder="—" />
                   </div>
                 )}
-                <div className="dv-form-field dv-fp-diag">
-                  <label className="dv-form-label">Diagnóstico</label>
-                  {todosDiagnosticos.length > 0 && !soloVista ? (
-                    <select
-                      className="dv-form-input"
-                      value={form.diagnostico}
-                      onChange={(e) => updateForm('diagnostico', e.target.value)}
-                    >
-                      <option value="">— Seleccionar —</option>
-                      {todosDiagnosticos.map((d) => (
-                        <option key={d.codigo} value={d.descripcion}>{d.codigo} – {d.descripcion}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      className={`dv-form-input${roCls}`}
-                      value={form.diagnostico}
-                      onChange={(e) => updateForm('diagnostico', e.target.value)}
-                      readOnly={soloVista}
-                      placeholder="Diagnóstico"
-                    />
-                  )}
-                </div>
+                {!soloVista ? (
+                  <BuscadorAsync<Diagnostico>
+                    className="dv-fp-diag"
+                    label="Diagnóstico"
+                    value={form.diagnostico}
+                    buscar={buscarDiagnosticos}
+                    listar={listarDiagnosticos}
+                    getKey={(d) => d.codigo}
+                    getTexto={(d) => d.descripcion}
+                    getDetalle={(d) => d.codigo}
+                    onSelect={seleccionarDiagnostico}
+                    onLimpiar={() => updateForm('diagnostico', '')}
+                    placeholder="Buscar diagnóstico por código o descripción..."
+                  />
+                ) : (
+                  <div className="dv-form-field dv-fp-diag">
+                    <label className="dv-form-label">Diagnóstico</label>
+                    <input className={`dv-form-input${roCls}`} value={form.diagnostico} readOnly placeholder="—" />
+                  </div>
+                )}
                 <div className="dv-form-field dv-fp-fecha">
                   <label className="dv-form-label">Fecha de turno</label>
                   <input

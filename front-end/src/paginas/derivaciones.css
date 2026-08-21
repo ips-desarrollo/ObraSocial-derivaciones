@@ -258,6 +258,94 @@
   white-space: nowrap;
 }
 
+/* ─── Header unificado (barra + afiliado) ───────────────────── */
+.dv-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  position: relative;
+  z-index: 1;
+}
+
+.dv-header-volver {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.dv-header-volver:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.dv-header-modo {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* Nombre + datos del afiliado en una sola línea (nombre prioritario) */
+.dv-header-afiliado {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  position: relative;
+  z-index: 1;
+}
+
+.dv-header-afiliado .dv-header-afiliado-name {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+/* Datos del afiliado: fila inline sobre el header, sin cuadro anidado */
+.dv-header-datos {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: stretch;
+  gap: 0.5rem 2rem;
+}
+
+.dv-header-dato {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.dv-header-dato-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.dv-header-dato-label::after {
+  content: ':';
+}
+
+.dv-header-dato-value {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+}
+
 /* ─── Body single column ────────────────────────────────────── */
 .dv-form-body--single {
   grid-template-columns: 1fr !important;
@@ -909,6 +997,242 @@
 .dv-search-item-dni {
   color: var(--text-muted);
   font-size: 0.8rem;
+}
+
+/* ─── Buscador asíncrono (patología / diagnóstico) ───────────── */
+.dv-bus-wrap {
+  position: relative;
+}
+
+.dv-bus-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin-top: 2px;
+  list-style: none;
+  padding: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-lg);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.dv-bus-info {
+  padding: 0.55rem 0.8rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.dv-bus-item {
+  padding: 0.5rem 0.8rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.dv-bus-item:last-child {
+  border-bottom: none;
+}
+
+.dv-bus-item--activa,
+.dv-bus-item:hover {
+  background: var(--ips-subtle);
+}
+
+.dv-bus-item-txt {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.dv-bus-item-det {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.dv-bus-elegido {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.6rem;
+  background: var(--ips-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  min-height: 2.4rem;
+}
+
+.dv-bus-elegido-txt {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dv-bus-cambiar {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--ips-primary, #1976d2);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+  border-radius: var(--r-sm);
+}
+
+.dv-bus-cambiar:hover {
+  text-decoration: underline;
+}
+
+.dv-bus-inputrow {
+  display: flex;
+  gap: 0.4rem;
+  align-items: stretch;
+}
+
+.dv-bus-inputrow .dv-form-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.dv-bus-verlista {
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0 0.7rem;
+  border-radius: var(--r-sm);
+  white-space: nowrap;
+}
+
+.dv-bus-verlista:hover {
+  background: var(--ips-subtle);
+}
+
+/* ─── Popup de lista completa (paginada) ─────────────────────── */
+.dv-modal--lista {
+  width: min(560px, 92vw);
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.dv-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.dv-modal-x {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+  border-radius: var(--r-sm);
+  line-height: 1;
+}
+
+.dv-modal-x:hover {
+  background: var(--ips-subtle);
+  color: var(--text);
+}
+
+.dv-modal-search {
+  width: 100%;
+}
+
+.dv-modal-lista {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  overflow-y: auto;
+  min-height: 260px;
+  max-height: 340px;
+}
+
+.dv-modal-item {
+  padding: 0.55rem 0.8rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  position: relative;
+  border-bottom: 1px solid var(--border);
+}
+
+.dv-modal-item:last-child {
+  border-bottom: none;
+}
+
+.dv-modal-item:hover {
+  background: var(--ips-subtle);
+}
+
+.dv-modal-item--sel {
+  background: var(--ips-subtle);
+}
+
+.dv-modal-check {
+  position: absolute;
+  right: 0.8rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--ips-primary, #1976d2);
+  font-weight: 700;
+}
+
+.dv-modal-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.dv-pager-btn {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0.35rem 0.9rem;
+  border-radius: var(--r-sm);
+}
+
+.dv-pager-btn:hover:not(:disabled) {
+  background: var(--ips-subtle);
+}
+
+.dv-pager-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.dv-pager-info {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-align: center;
+  flex: 1;
 }
 
 /* ─── Modal (solo para confirmar eliminación) ────────────────── */
