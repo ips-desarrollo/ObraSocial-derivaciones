@@ -541,6 +541,34 @@
   flex: 1;
 }
 
+/* Link para descargar la Declaración de Datos Personales (mismo formato que el modo del header) */
+.dv-descarga-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0;
+  background: none;
+  border: none;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.55);
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.dv-descarga-link:hover {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.dv-descarga-link svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
 /* ─── Tabs Ver / Movimiento ──────────────────────────────────── */
 .cl-tabs {
   display: flex;
