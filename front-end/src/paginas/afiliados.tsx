@@ -276,7 +276,7 @@ export default function Afiliados() {
 
   useEffect(() => {
     verificarSesion();
-    fetch(`${API}/empleadores`)
+    fetchAuth(`${API}/empleadores`)
       .then(r => r.json())
       .then(data => { if (Array.isArray(data)) setEmpleadores(data); })
       .catch(() => {});
@@ -410,7 +410,7 @@ export default function Afiliados() {
     setErrorBusqueda(null);
     setBuscando(true);
     try {
-      const res = await fetch(
+      const res = await fetchAuth(
         `${API}/afiliados/buscar?q=${encodeURIComponent(q.trim())}&campo=${campo}`
       );
       const data = await res.json();
@@ -474,7 +474,7 @@ export default function Afiliados() {
     setBusquedaNombre('');
     setBusquedaDni('');
     try {
-      const res = await fetch(`${API}/afiliados/${r.documento}`);
+      const res = await fetchAuth(`${API}/afiliados/${r.documento}`);
       const data = await res.json();
       if (!res.ok || data.error || typeof data.documento !== 'number') {
         setErrorBusqueda(data.error || data.detail || 'No se pudo cargar el afiliado.');

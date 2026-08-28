@@ -14,7 +14,7 @@ function getUserRoles(): string[] {
 
 export default function NavBar() {
   const roles = getUserRoles();
-  const soloLectura = roles.length === 1 && roles[0] === 'lectura';
+  const esAdmin = roles.includes('admin');
 
   return (
     <nav className="nav">
@@ -42,7 +42,7 @@ export default function NavBar() {
         Costos
       </NavLink>
 
-      {!soloLectura && (
+      {esAdmin && (
         <NavLink to="/usuarios" className="nav-link">
           Usuarios
         </NavLink>

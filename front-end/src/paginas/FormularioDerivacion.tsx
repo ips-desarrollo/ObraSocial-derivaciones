@@ -303,14 +303,14 @@ export default function FormularioDerivacion({ modo, mes, derivacion, documentoI
   // Buscadores asíncronos: en vez de bajar toda la tabla (miles de filas) al
   // navegador, el servidor filtra por texto y devuelve sólo las primeras N.
   const buscarPatologias = useCallback(async (q: string): Promise<Patologia[]> => {
-    const res = await fetch(`${API}/patologias/buscar?q=${encodeURIComponent(q)}&limit=15`);
+    const res = await fetchAuth(`${API}/patologias/buscar?q=${encodeURIComponent(q)}&limit=15`);
     if (!res.ok) return [];
     const data = await res.json();
     return Array.isArray(data) ? data : [];
   }, []);
 
   const buscarDiagnosticos = useCallback(async (q: string): Promise<Diagnostico[]> => {
-    const res = await fetch(`${API}/diagnosticos/buscar?q=${encodeURIComponent(q)}&limit=15`);
+    const res = await fetchAuth(`${API}/diagnosticos/buscar?q=${encodeURIComponent(q)}&limit=15`);
     if (!res.ok) return [];
     const data = await res.json();
     return Array.isArray(data) ? data : [];
@@ -318,14 +318,14 @@ export default function FormularioDerivacion({ modo, mes, derivacion, documentoI
 
   // Lista paginada (para el popup "Ver todas"): bloques de 10 navegables.
   const listarPatologias = useCallback(async (q: string, page: number) => {
-    const res = await fetch(`${API}/patologias/lista?q=${encodeURIComponent(q)}&page=${page}&limit=10`);
+    const res = await fetchAuth(`${API}/patologias/lista?q=${encodeURIComponent(q)}&page=${page}&limit=10`);
     if (!res.ok) return { items: [], total: 0, pages: 0 };
     const data = await res.json();
     return data && Array.isArray(data.items) ? data : { items: [], total: 0, pages: 0 };
   }, []);
 
   const listarDiagnosticos = useCallback(async (q: string, page: number) => {
-    const res = await fetch(`${API}/diagnosticos/lista?q=${encodeURIComponent(q)}&page=${page}&limit=10`);
+    const res = await fetchAuth(`${API}/diagnosticos/lista?q=${encodeURIComponent(q)}&page=${page}&limit=10`);
     if (!res.ok) return { items: [], total: 0, pages: 0 };
     const data = await res.json();
     return data && Array.isArray(data.items) ? data : { items: [], total: 0, pages: 0 };
@@ -391,7 +391,7 @@ export default function FormularioDerivacion({ modo, mes, derivacion, documentoI
     }
     try {
       const campo = /^\d+$/.test(q) ? 'dni' : 'nombre';
-      const res = await fetch(`${API}/afiliados/buscar?q=${encodeURIComponent(q)}&campo=${campo}`);
+      const res = await fetchAuth(`${API}/afiliados/buscar?q=${encodeURIComponent(q)}&campo=${campo}`);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) setResultadosAfiliado(data);
@@ -401,7 +401,7 @@ export default function FormularioDerivacion({ modo, mes, derivacion, documentoI
 
   async function cargarPatologias(documento: number) {
     try {
-      const res = await fetch(`${API}/patologias/afiliado/${documento}`);
+      const res = await fetchAuth(`${API}/patologias/afiliado/${documento}`);
       if (!res.ok) return;
       const data = await res.json();
       if (data && data.error) return;
@@ -445,7 +445,7 @@ export default function FormularioDerivacion({ modo, mes, derivacion, documentoI
     }));
 
     try {
-      const res = await fetch(`${API}/afiliados/${documento}`);
+      const res = await fetchAuth(`${API}/afiliados/${documento}`);
       if (!res.ok) return;
       const data = await res.json();
       if (data.error) return;

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Body, Depends, HTTPException
+from fastapi import FastAPI, Body, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
 from datetime import datetime, timedelta, timezone
@@ -16,11 +16,27 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-app = FastAPI(title="API Obra Social")
+# La documentación interactiva (/docs, /openapi.json) queda deshabilitada
+# salvo que ENABLE_DOCS=1 (solo para desarrollo local).
+_docs_habilitados = os.getenv("ENABLE_DOCS", "") == "1"
+app = FastAPI(
+    title="API Obra Social",
+    docs_url="/docs" if _docs_habilitados else None,
+    redoc_url=None,
+    openapi_url="/openapi.json" if _docs_habilitados else None,
+)
 
+# Orígenes permitidos para CORS. En producción el front sirve la API por el
+# proxy de nginx (/api/, mismo origen), así que solo hace falta listar acá
+# los orígenes de desarrollo o un dominio distinto al del front.
+_cors_origins = [
+    o.strip()
+    for o in os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
+    if o.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -29,9 +45,17 @@ app.add_middleware(
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login", auto_error=False)
 
-JWT_SECRET = os.getenv("JWT_SECRET", "default-secret-change-me")
+JWT_SECRET = os.getenv("JWT_SECRET", "")
+if not JWT_SECRET or JWT_SECRET in ("default-secret-change-me", "cambiar-por-un-secreto-seguro"):
+    raise RuntimeError(
+        "JWT_SECRET no está configurado (o tiene el valor de ejemplo). "
+        "Configurá un secreto largo y aleatorio en el .env local o en las "
+        "variables de entorno de Dokploy antes de arrancar."
+    )
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "480"))
+
+MIN_PASSWORD_LEN = 8
 
 
 class LoginRequest(BaseModel):
@@ -43,6 +67,8 @@ class CrearUsuarioRequest(BaseModel):
     nombre_completo: str
     email: str
     password: str
+    activo: bool = True
+    roles: list[str] | None = None
 
 
 class ActualizarUsuarioRequest(BaseModel):
@@ -105,13 +131,71 @@ def get_connection():
 
 
 def get_pg_connection():
+    pg_password = os.getenv("PG_PASSWORD", "")
+    if not pg_password:
+        raise RuntimeError(
+            "PG_PASSWORD no está configurada. Configurala en el .env local "
+            "o en las variables de entorno de Dokploy."
+        )
     return psycopg2.connect(
         host=os.getenv("PG_HOST", "localhost"),
         port=int(os.getenv("PG_PORT", "5433")),
         dbname=os.getenv("PG_NAME", "obrasocial"),
         user=os.getenv("PG_USER", "postgres"),
-        password=os.getenv("PG_PASSWORD", "postgres"),
+        password=pg_password,
     )
+
+
+# ── Base de identidad centralizada ("usuarios") ──────────────────────────
+# Usuarios, roles, permisos y auditoría viven en la BD "usuarios" (misma
+# instancia PostgreSQL salvo que se configuren las variables USR_*).
+# Este sistema se identifica ante esa base con el código SISTEMA_CODIGO.
+SISTEMA_CODIGO = os.getenv("SISTEMA_CODIGO", "obra_social")
+
+
+def get_usuarios_connection():
+    password = os.getenv("USR_PASSWORD", "") or os.getenv("PG_PASSWORD", "")
+    if not password:
+        raise RuntimeError(
+            "PG_PASSWORD/USR_PASSWORD no está configurada. Configurala en el "
+            ".env local o en las variables de entorno de Dokploy."
+        )
+    return psycopg2.connect(
+        host=os.getenv("USR_HOST", "") or os.getenv("PG_HOST", "localhost"),
+        port=int(os.getenv("USR_PORT", "") or os.getenv("PG_PORT", "5433")),
+        dbname=os.getenv("USR_NAME", "usuarios"),
+        user=os.getenv("USR_USER", "") or os.getenv("PG_USER", "postgres"),
+        password=password,
+    )
+
+
+def _sistema_id(cur) -> int:
+    cur.execute(
+        "SELECT id FROM sistemas WHERE codigo = %s AND activo", (SISTEMA_CODIGO,)
+    )
+    row = cur.fetchone()
+    if row is None:
+        raise RuntimeError(
+            f"El sistema '{SISTEMA_CODIGO}' no existe (o está inactivo) en la "
+            "base de identidad. Ejecutá el seed de usuarios_schema.sql."
+        )
+    return row[0]
+
+
+def _actor(cur, token: str | None) -> tuple[int | None, str | None]:
+    """Resuelve el usuario que ejecuta la acción CONTRA la base de identidad.
+
+    El id se busca por email (y se valida contra el id del token) para no
+    atribuir acciones a otro usuario si un JWT viejo trae un id de la base
+    anterior."""
+    uid, uemail = _extraer_usuario(token)
+    if uid is None or not uemail:
+        return None, None
+    cur.execute("SELECT id FROM usuarios WHERE email = %s", (uemail,))
+    row = cur.fetchone()
+    if row is None:
+        return None, uemail
+    return row[0], uemail
 
 
 def _pg_set_audit_context(cur, usuario_id: int | None, usuario_email: str | None):
@@ -129,35 +213,131 @@ def read_root():
     }
 
 
-@app.post("/login")
-def login(datos: LoginRequest):
+# ── Protección de fuerza bruta en /login ─────────────────────────────────
+# Limitador simple en memoria: máximo _LOGIN_MAX_INTENTOS fallidos por IP
+# en una ventana de _LOGIN_VENTANA_SEG segundos. Si el proceso se reinicia
+# el contador se resetea, lo cual es aceptable para este volumen de uso.
+from collections import defaultdict, deque
+import time as _time
+
+_LOGIN_MAX_INTENTOS = 5
+_LOGIN_VENTANA_SEG = 900  # 15 minutos
+_login_fallidos: dict[str, deque] = defaultdict(deque)
+
+
+def _login_bloqueado(ip: str) -> bool:
+    intentos = _login_fallidos[ip]
+    ahora = _time.monotonic()
+    while intentos and ahora - intentos[0] > _LOGIN_VENTANA_SEG:
+        intentos.popleft()
+    return len(intentos) >= _LOGIN_MAX_INTENTOS
+
+
+def _registrar_login_fallido(ip: str):
+    _login_fallidos[ip].append(_time.monotonic())
+
+
+def _registrar_intento_login(email: str, usuario_id: int | None, sistema_id: int | None,
+                             exito: bool, motivo: str | None, ip: str, user_agent: str | None):
+    """Bitácora persistente de logins en la base de identidad (tabla
+    intentos_login). Nunca interrumpe el flujo de login si falla."""
+    ip_valida = None
+    if ip and ip != "desconocida":
+        try:
+            import ipaddress
+            ipaddress.ip_address(ip)
+            ip_valida = ip
+        except ValueError:
+            ip_valida = None
     try:
-        pg = get_pg_connection()
+        pg = get_usuarios_connection()
         cur = pg.cursor()
         cur.execute(
+            """INSERT INTO intentos_login (usuario_id, email, sistema_id, exito, motivo, ip, user_agent)
+               VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+            (usuario_id, email, sistema_id, exito, motivo, ip_valida,
+             (user_agent or "")[:255] or None),
+        )
+        pg.commit()
+        cur.close()
+        pg.close()
+    except Exception as e:
+        print(f"[INTENTOS_LOGIN ERROR] {e}")
+
+
+@app.post("/login")
+def login(datos: LoginRequest, request: Request):
+    # Detrás del proxy nginx la IP real viene en X-Forwarded-For.
+    ip = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip() \
+        or (request.client.host if request.client else "desconocida")
+    if _login_bloqueado(ip):
+        raise HTTPException(
+            status_code=429,
+            detail="Demasiados intentos fallidos. Esperá unos minutos y volvé a intentar.",
+        )
+    email_login = datos.email.strip().lower()
+    user_agent = request.headers.get("user-agent")
+    try:
+        pg = get_usuarios_connection()
+        cur = pg.cursor()
+        sistema = _sistema_id(cur)
+        cur.execute(
             """SELECT u.id, u.nombre_completo, u.email, u.password_hash, u.activo,
-                      ARRAY_AGG(r.nombre) FILTER (WHERE r.nombre IS NOT NULL) AS roles
+                      u.bloqueado_hasta,
+                      us.activo AS membresia_activa,
+                      ARRAY(SELECT r.nombre
+                            FROM usuarios_roles ur
+                            JOIN roles r ON r.id = ur.rol_id
+                            WHERE ur.usuario_id = u.id AND ur.sistema_id = %s
+                            ORDER BY r.nombre) AS roles
                FROM usuarios u
-               LEFT JOIN usuarios_roles ur ON u.id = ur.usuario_id
-               LEFT JOIN roles r ON ur.rol_id = r.id
-               WHERE u.email = %s
-               GROUP BY u.id""",
-            (datos.email.strip().lower(),),
+               LEFT JOIN usuarios_sistemas us
+                      ON us.usuario_id = u.id AND us.sistema_id = %s
+               WHERE u.email = %s""",
+            (sistema, sistema, email_login),
         )
         row = cur.fetchone()
+
+        def _rechazar(motivo: str, usuario_id: int | None = None):
+            cur.close()
+            pg.close()
+            _registrar_login_fallido(ip)
+            _registrar_intento_login(email_login, usuario_id, sistema, False, motivo, ip, user_agent)
+            # Mismo mensaje en todos los casos para no revelar si el email
+            # existe, está inactivo o bloqueado.
+            return HTTPException(status_code=401, detail="Email o contraseña incorrectos")
+
+        if row is None:
+            raise _rechazar("email_inexistente")
+
+        user_id, nombre, email, password_hash, activo, bloqueado_hasta, membresia_activa, roles = row
+
+        if not activo:
+            raise _rechazar("cuenta_inactiva", user_id)
+        if bloqueado_hasta is not None and bloqueado_hasta > datetime.now():
+            raise _rechazar("cuenta_bloqueada", user_id)
+        if not membresia_activa:
+            raise _rechazar("sin_acceso_al_sistema", user_id)
+
+        try:
+            password_ok = pwd_context.verify(datos.password, password_hash)
+        except (ValueError, TypeError):
+            # Hash malformado (ej. placeholder del seed): tratar como inválida
+            password_ok = False
+        if not password_ok:
+            raise _rechazar("password_incorrecta", user_id)
+
+        _login_fallidos.pop(ip, None)
+
+        cur.execute(
+            "UPDATE usuarios SET ultimo_acceso = CURRENT_TIMESTAMP, intentos_fallidos = 0 WHERE id = %s",
+            (user_id,),
+        )
+        pg.commit()
         cur.close()
         pg.close()
 
-        if row is None:
-            raise HTTPException(status_code=401, detail="Email o contraseña incorrectos")
-
-        user_id, nombre, email, password_hash, activo, roles = row
-
-        if not activo:
-            raise HTTPException(status_code=401, detail="Usuario desactivado")
-
-        if not pwd_context.verify(datos.password, password_hash):
-            raise HTTPException(status_code=401, detail="Email o contraseña incorrectos")
+        _registrar_intento_login(email_login, user_id, sistema, True, None, ip, user_agent)
 
         token = crear_token({
             "sub": str(user_id),
@@ -178,7 +358,7 @@ def login(datos: LoginRequest):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _error_interno(e)
 
 
 @app.post("/crear-usuario")
@@ -186,47 +366,75 @@ def crear_usuario(datos: CrearUsuarioRequest, token: str | None = Depends(oauth2
     uid, uemail = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
-    if _solo_lectura(_extraer_roles(token)):
-        raise HTTPException(status_code=403, detail="Sin permisos para esta acción")
+    if not _es_admin(_extraer_roles(token)):
+        raise HTTPException(status_code=403, detail="Solo un administrador puede gestionar usuarios")
+    if len(datos.password) < MIN_PASSWORD_LEN:
+        raise HTTPException(status_code=400, detail=f"La contraseña debe tener al menos {MIN_PASSWORD_LEN} caracteres")
     try:
-        pg = get_pg_connection()
+        pg = get_usuarios_connection()
         pg.autocommit = False
         cur = pg.cursor()
+        sistema = _sistema_id(cur)
+        actor_id, actor_email = _actor(cur, token)
 
-        _pg_set_audit_context(cur, uid, uemail)
+        _pg_set_audit_context(cur, actor_id, actor_email)
 
-        cur.execute("SELECT COUNT(*) FROM usuarios WHERE email = %s", (datos.email.strip().lower(),))
-        if cur.fetchone()[0] > 0:
-            cur.close()
-            pg.close()
-            raise HTTPException(status_code=400, detail="Ya existe un usuario con ese email")
+        email_nuevo = datos.email.strip().lower()
+        cur.execute("SELECT id FROM usuarios WHERE email = %s", (email_nuevo,))
+        existente = cur.fetchone()
 
-        hashed = pwd_context.hash(datos.password)
-        cur.execute(
-            """INSERT INTO usuarios (nombre_completo, email, password_hash, creado_por)
-               VALUES (%s, %s, %s, %s) RETURNING id""",
-            (datos.nombre_completo.strip(), datos.email.strip().lower(), hashed, uid),
-        )
-        user_id = cur.fetchone()[0]
-
-        cur.execute(
-            "SELECT id FROM roles WHERE nombre = 'operador'"
-        )
-        rol = cur.fetchone()
-        if rol:
+        if existente is not None:
+            # El usuario ya existe como identidad global (quizá de otro
+            # sistema): no se duplica, solo se le da acceso a este sistema.
+            user_id = existente[0]
             cur.execute(
-                "INSERT INTO usuarios_roles (usuario_id, rol_id, asignado_por) VALUES (%s, %s, %s)",
-                (user_id, rol[0], uid),
+                "SELECT 1 FROM usuarios_sistemas WHERE usuario_id = %s AND sistema_id = %s",
+                (user_id, sistema),
             )
+            if cur.fetchone() is not None:
+                cur.close()
+                pg.close()
+                raise HTTPException(status_code=400, detail="Ya existe un usuario con ese email")
+        else:
+            hashed = pwd_context.hash(datos.password)
+            cur.execute(
+                """INSERT INTO usuarios (nombre_completo, email, password_hash, activo, creado_por)
+                   VALUES (%s, %s, %s, %s, %s) RETURNING id""",
+                (datos.nombre_completo.strip(), email_nuevo, hashed, datos.activo, actor_id),
+            )
+            user_id = cur.fetchone()[0]
+
+        # Membresía al sistema
+        cur.execute(
+            """INSERT INTO usuarios_sistemas (usuario_id, sistema_id, asignado_por)
+               VALUES (%s, %s, %s)""",
+            (user_id, sistema, actor_id),
+        )
+
+        # Roles (scopeados al sistema). Si no se envían, 'operador' por defecto.
+        roles_pedidos = datos.roles if datos.roles else ["operador"]
+        for rol_nombre in roles_pedidos:
+            cur.execute(
+                "SELECT id FROM roles WHERE sistema_id = %s AND nombre = %s",
+                (sistema, rol_nombre),
+            )
+            rol = cur.fetchone()
+            if rol:
+                cur.execute(
+                    """INSERT INTO usuarios_roles (usuario_id, sistema_id, rol_id, asignado_por)
+                       VALUES (%s, %s, %s, %s)
+                       ON CONFLICT (usuario_id, rol_id) DO NOTHING""",
+                    (user_id, sistema, rol[0], actor_id),
+                )
 
         pg.commit()
         cur.close()
         pg.close()
-        return {"ok": True, "id": user_id, "email": datos.email.strip().lower()}
+        return {"ok": True, "id": user_id, "email": email_nuevo}
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _error_interno(e)
 
 
 @app.get("/usuarios")
@@ -234,19 +442,25 @@ def listar_usuarios(token: str | None = Depends(oauth2_scheme)):
     uid, _ = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
-    if _solo_lectura(_extraer_roles(token)):
-        raise HTTPException(status_code=403, detail="Sin permisos para ver usuarios")
+    if not _es_admin(_extraer_roles(token)):
+        raise HTTPException(status_code=403, detail="Solo un administrador puede gestionar usuarios")
     try:
-        pg = get_pg_connection()
+        pg = get_usuarios_connection()
         cur = pg.cursor()
+        sistema = _sistema_id(cur)
         cur.execute(
             """SELECT u.id, u.nombre_completo, u.email, u.activo, u.creado_en,
-                      ARRAY_AGG(r.nombre) FILTER (WHERE r.nombre IS NOT NULL) AS roles
+                      ARRAY(SELECT r.nombre
+                            FROM usuarios_roles ur
+                            JOIN roles r ON r.id = ur.rol_id
+                            WHERE ur.usuario_id = u.id AND ur.sistema_id = %s
+                            ORDER BY r.nombre) AS roles,
+                      u.ultimo_acceso, us.activo AS membresia_activa
                FROM usuarios u
-               LEFT JOIN usuarios_roles ur ON u.id = ur.usuario_id
-               LEFT JOIN roles r ON ur.rol_id = r.id
-               GROUP BY u.id
-               ORDER BY u.nombre_completo"""
+               JOIN usuarios_sistemas us
+                    ON us.usuario_id = u.id AND us.sistema_id = %s
+               ORDER BY u.nombre_completo""",
+            (sistema, sistema),
         )
         rows = cur.fetchall()
         cur.close()
@@ -259,13 +473,15 @@ def listar_usuarios(token: str | None = Depends(oauth2_scheme)):
                 "activo": r[3],
                 "creado_en": r[4].isoformat() if r[4] else None,
                 "roles": r[5] or [],
+                "ultimo_acceso": r[6].isoformat() if r[6] else None,
+                "membresia_activa": r[7],
             }
             for r in rows
         ]
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _error_interno(e)
 
 
 @app.get("/roles")
@@ -274,15 +490,212 @@ def listar_roles(token: str | None = Depends(oauth2_scheme)):
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
     try:
-        pg = get_pg_connection()
+        pg = get_usuarios_connection()
         cur = pg.cursor()
-        cur.execute("SELECT id, nombre, descripcion FROM roles ORDER BY nombre")
+        sistema = _sistema_id(cur)
+        cur.execute(
+            """SELECT r.id, r.nombre, r.descripcion,
+                      ARRAY(SELECT p.codigo
+                            FROM roles_permisos rp
+                            JOIN permisos p ON p.id = rp.permiso_id
+                            WHERE rp.rol_id = r.id
+                            ORDER BY p.codigo) AS permisos,
+                      (SELECT COUNT(*) FROM usuarios_roles ur WHERE ur.rol_id = r.id) AS usuarios
+               FROM roles r
+               WHERE r.sistema_id = %s
+               ORDER BY r.nombre""",
+            (sistema,),
+        )
         rows = cur.fetchall()
         cur.close()
         pg.close()
-        return [{"id": r[0], "nombre": r[1], "descripcion": r[2]} for r in rows]
+        return [
+            {"id": r[0], "nombre": r[1], "descripcion": r[2],
+             "permisos": r[3] or [], "usuarios": r[4]}
+            for r in rows
+        ]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _error_interno(e)
+
+
+@app.get("/permisos")
+def listar_permisos(token: str | None = Depends(oauth2_scheme)):
+    uid, _ = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    try:
+        pg = get_usuarios_connection()
+        cur = pg.cursor()
+        sistema = _sistema_id(cur)
+        cur.execute(
+            """SELECT id, codigo, nombre, descripcion
+               FROM permisos WHERE sistema_id = %s ORDER BY codigo""",
+            (sistema,),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        pg.close()
+        return [
+            {"id": r[0], "codigo": r[1], "nombre": r[2], "descripcion": r[3]}
+            for r in rows
+        ]
+    except Exception as e:
+        raise _error_interno(e)
+
+
+class RolRequest(BaseModel):
+    nombre: str
+    descripcion: str | None = None
+    permisos: list[str] = []
+
+
+@app.post("/roles")
+def crear_rol(datos: RolRequest, token: str | None = Depends(oauth2_scheme)):
+    _requerir_admin(token)
+    nombre = datos.nombre.strip().lower()
+    if not nombre:
+        raise HTTPException(status_code=400, detail="El nombre del rol es obligatorio")
+    try:
+        pg = get_usuarios_connection()
+        pg.autocommit = False
+        cur = pg.cursor()
+        sistema = _sistema_id(cur)
+        actor_id, actor_email = _actor(cur, token)
+        _pg_set_audit_context(cur, actor_id, actor_email)
+
+        cur.execute(
+            "SELECT 1 FROM roles WHERE sistema_id = %s AND nombre = %s",
+            (sistema, nombre),
+        )
+        if cur.fetchone() is not None:
+            cur.close()
+            pg.close()
+            raise HTTPException(status_code=400, detail="Ya existe un rol con ese nombre")
+
+        cur.execute(
+            """INSERT INTO roles (sistema_id, nombre, descripcion)
+               VALUES (%s, %s, %s) RETURNING id""",
+            (sistema, nombre, (datos.descripcion or "").strip() or None),
+        )
+        rol_id = cur.fetchone()[0]
+        _asignar_permisos_rol(cur, sistema, rol_id, datos.permisos)
+
+        pg.commit()
+        cur.close()
+        pg.close()
+        return {"ok": True, "id": rol_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _error_interno(e)
+
+
+@app.put("/roles/{rol_id}")
+def actualizar_rol(rol_id: int, datos: RolRequest, token: str | None = Depends(oauth2_scheme)):
+    _requerir_admin(token)
+    try:
+        pg = get_usuarios_connection()
+        pg.autocommit = False
+        cur = pg.cursor()
+        sistema = _sistema_id(cur)
+        actor_id, actor_email = _actor(cur, token)
+        _pg_set_audit_context(cur, actor_id, actor_email)
+
+        cur.execute(
+            "SELECT nombre FROM roles WHERE id = %s AND sistema_id = %s",
+            (rol_id, sistema),
+        )
+        rol = cur.fetchone()
+        if rol is None:
+            cur.close()
+            pg.close()
+            raise HTTPException(status_code=404, detail="Rol no encontrado")
+
+        nombre_actual = rol[0]
+        nombre_nuevo = datos.nombre.strip().lower() or nombre_actual
+        # 'admin' es el rol que protege la gestión: no se renombra.
+        if nombre_actual == "admin" and nombre_nuevo != "admin":
+            cur.close()
+            pg.close()
+            raise HTTPException(status_code=400, detail="El rol 'admin' no se puede renombrar")
+
+        cur.execute(
+            "UPDATE roles SET nombre = %s, descripcion = %s WHERE id = %s",
+            (nombre_nuevo, (datos.descripcion or "").strip() or None, rol_id),
+        )
+        cur.execute("DELETE FROM roles_permisos WHERE rol_id = %s", (rol_id,))
+        _asignar_permisos_rol(cur, sistema, rol_id, datos.permisos)
+
+        pg.commit()
+        cur.close()
+        pg.close()
+        return {"ok": True, "id": rol_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _error_interno(e)
+
+
+@app.delete("/roles/{rol_id}")
+def eliminar_rol(rol_id: int, token: str | None = Depends(oauth2_scheme)):
+    _requerir_admin(token)
+    try:
+        pg = get_usuarios_connection()
+        pg.autocommit = False
+        cur = pg.cursor()
+        sistema = _sistema_id(cur)
+        actor_id, actor_email = _actor(cur, token)
+        _pg_set_audit_context(cur, actor_id, actor_email)
+
+        cur.execute(
+            "SELECT nombre FROM roles WHERE id = %s AND sistema_id = %s",
+            (rol_id, sistema),
+        )
+        rol = cur.fetchone()
+        if rol is None:
+            cur.close()
+            pg.close()
+            raise HTTPException(status_code=404, detail="Rol no encontrado")
+        if rol[0] == "admin":
+            cur.close()
+            pg.close()
+            raise HTTPException(status_code=400, detail="El rol 'admin' no se puede eliminar")
+
+        cur.execute("SELECT COUNT(*) FROM usuarios_roles WHERE rol_id = %s", (rol_id,))
+        en_uso = cur.fetchone()[0]
+        if en_uso > 0:
+            cur.close()
+            pg.close()
+            raise HTTPException(
+                status_code=400,
+                detail=f"El rol está asignado a {en_uso} usuario(s). Quitáselo antes de eliminarlo.",
+            )
+
+        cur.execute("DELETE FROM roles WHERE id = %s", (rol_id,))
+        pg.commit()
+        cur.close()
+        pg.close()
+        return {"ok": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _error_interno(e)
+
+
+def _asignar_permisos_rol(cur, sistema: int, rol_id: int, codigos: list[str]):
+    for codigo in codigos:
+        cur.execute(
+            "SELECT id FROM permisos WHERE sistema_id = %s AND codigo = %s",
+            (sistema, codigo),
+        )
+        perm = cur.fetchone()
+        if perm:
+            cur.execute(
+                """INSERT INTO roles_permisos (sistema_id, rol_id, permiso_id)
+                   VALUES (%s, %s, %s)
+                   ON CONFLICT (rol_id, permiso_id) DO NOTHING""",
+                (sistema, rol_id, perm[0]),
+            )
 
 
 @app.get("/usuarios/{usuario_id}")
@@ -290,20 +703,25 @@ def obtener_usuario(usuario_id: int, token: str | None = Depends(oauth2_scheme))
     uid, _ = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
-    if _solo_lectura(_extraer_roles(token)):
-        raise HTTPException(status_code=403, detail="Sin permisos para ver usuarios")
+    if not _es_admin(_extraer_roles(token)):
+        raise HTTPException(status_code=403, detail="Solo un administrador puede gestionar usuarios")
     try:
-        pg = get_pg_connection()
+        pg = get_usuarios_connection()
         cur = pg.cursor()
+        sistema = _sistema_id(cur)
         cur.execute(
             """SELECT u.id, u.nombre_completo, u.email, u.activo, u.creado_en,
-                      ARRAY_AGG(r.nombre) FILTER (WHERE r.nombre IS NOT NULL) AS roles
+                      ARRAY(SELECT r.nombre
+                            FROM usuarios_roles ur
+                            JOIN roles r ON r.id = ur.rol_id
+                            WHERE ur.usuario_id = u.id AND ur.sistema_id = %s
+                            ORDER BY r.nombre) AS roles,
+                      u.ultimo_acceso
                FROM usuarios u
-               LEFT JOIN usuarios_roles ur ON u.id = ur.usuario_id
-               LEFT JOIN roles r ON ur.rol_id = r.id
-               WHERE u.id = %s
-               GROUP BY u.id""",
-            (usuario_id,),
+               JOIN usuarios_sistemas us
+                    ON us.usuario_id = u.id AND us.sistema_id = %s
+               WHERE u.id = %s""",
+            (sistema, sistema, usuario_id),
         )
         row = cur.fetchone()
         cur.close()
@@ -317,11 +735,12 @@ def obtener_usuario(usuario_id: int, token: str | None = Depends(oauth2_scheme))
             "activo": row[3],
             "creado_en": row[4].isoformat() if row[4] else None,
             "roles": row[5] or [],
+            "ultimo_acceso": row[6].isoformat() if row[6] else None,
         }
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _error_interno(e)
 
 
 @app.put("/usuarios/{usuario_id}")
@@ -329,18 +748,26 @@ def actualizar_usuario(usuario_id: int, datos: ActualizarUsuarioRequest, token: 
     uid, uemail = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
-    if _solo_lectura(_extraer_roles(token)):
-        raise HTTPException(status_code=403, detail="Sin permisos para esta acción")
+    if not _es_admin(_extraer_roles(token)):
+        raise HTTPException(status_code=403, detail="Solo un administrador puede gestionar usuarios")
+    if datos.password is not None and datos.password.strip() and len(datos.password) < MIN_PASSWORD_LEN:
+        raise HTTPException(status_code=400, detail=f"La contraseña debe tener al menos {MIN_PASSWORD_LEN} caracteres")
     try:
-        pg = get_pg_connection()
+        pg = get_usuarios_connection()
         pg.autocommit = False
         cur = pg.cursor()
+        sistema = _sistema_id(cur)
+        actor_id, actor_email = _actor(cur, token)
 
-        _pg_set_audit_context(cur, uid, uemail)
+        _pg_set_audit_context(cur, actor_id, actor_email)
 
         cur.execute(
-            "SELECT nombre_completo, email, activo FROM usuarios WHERE id = %s",
-            (usuario_id,),
+            """SELECT u.nombre_completo, u.email, u.activo
+               FROM usuarios u
+               JOIN usuarios_sistemas us
+                    ON us.usuario_id = u.id AND us.sistema_id = %s
+               WHERE u.id = %s""",
+            (sistema, usuario_id),
         )
         actual = cur.fetchone()
         if actual is None:
@@ -377,7 +804,7 @@ def actualizar_usuario(usuario_id: int, datos: ActualizarUsuarioRequest, token: 
 
         if sets:
             sets.append("actualizado_por = %s")
-            params.append(uid)
+            params.append(actor_id)
             params.append(usuario_id)
             cur.execute(
                 f"UPDATE usuarios SET {', '.join(sets)} WHERE id = %s",
@@ -385,24 +812,34 @@ def actualizar_usuario(usuario_id: int, datos: ActualizarUsuarioRequest, token: 
             )
 
         if datos.roles is not None:
+            # Solo se tocan los roles de ESTE sistema; los de otros sistemas
+            # (ej. oncología) no se modifican desde acá.
             cur.execute(
                 """SELECT r.nombre FROM usuarios_roles ur
                    JOIN roles r ON ur.rol_id = r.id
-                   WHERE ur.usuario_id = %s ORDER BY r.nombre""",
-                (usuario_id,),
+                   WHERE ur.usuario_id = %s AND ur.sistema_id = %s
+                   ORDER BY r.nombre""",
+                (usuario_id, sistema),
             )
             roles_actuales = sorted([row[0] for row in cur.fetchall()])
             roles_nuevos = sorted(datos.roles)
 
             if roles_actuales != roles_nuevos:
-                cur.execute("DELETE FROM usuarios_roles WHERE usuario_id = %s", (usuario_id,))
+                cur.execute(
+                    "DELETE FROM usuarios_roles WHERE usuario_id = %s AND sistema_id = %s",
+                    (usuario_id, sistema),
+                )
                 for rol_nombre in datos.roles:
-                    cur.execute("SELECT id FROM roles WHERE nombre = %s", (rol_nombre,))
+                    cur.execute(
+                        "SELECT id FROM roles WHERE sistema_id = %s AND nombre = %s",
+                        (sistema, rol_nombre),
+                    )
                     rol_row = cur.fetchone()
                     if rol_row:
                         cur.execute(
-                            "INSERT INTO usuarios_roles (usuario_id, rol_id, asignado_por) VALUES (%s, %s, %s)",
-                            (usuario_id, rol_row[0], uid),
+                            """INSERT INTO usuarios_roles (usuario_id, sistema_id, rol_id, asignado_por)
+                               VALUES (%s, %s, %s, %s)""",
+                            (usuario_id, sistema, rol_row[0], actor_id),
                         )
 
         pg.commit()
@@ -412,7 +849,7 @@ def actualizar_usuario(usuario_id: int, datos: ActualizarUsuarioRequest, token: 
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _error_interno(e)
 
 
 @app.delete("/usuarios/{usuario_id}")
@@ -420,35 +857,62 @@ def eliminar_usuario(usuario_id: int, token: str | None = Depends(oauth2_scheme)
     uid, uemail = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
-    if _solo_lectura(_extraer_roles(token)):
-        raise HTTPException(status_code=403, detail="Sin permisos para esta acción")
-    if uid == usuario_id:
-        raise HTTPException(status_code=400, detail="No puedes eliminarte a ti mismo")
+    if not _es_admin(_extraer_roles(token)):
+        raise HTTPException(status_code=403, detail="Solo un administrador puede gestionar usuarios")
     try:
-        pg = get_pg_connection()
+        pg = get_usuarios_connection()
         pg.autocommit = False
         cur = pg.cursor()
+        sistema = _sistema_id(cur)
+        actor_id, actor_email = _actor(cur, token)
 
-        _pg_set_audit_context(cur, uid, uemail)
+        if actor_id == usuario_id:
+            cur.close()
+            pg.close()
+            raise HTTPException(status_code=400, detail="No puedes eliminarte a ti mismo")
 
-        cur.execute("SELECT id FROM usuarios WHERE id = %s", (usuario_id,))
+        _pg_set_audit_context(cur, actor_id, actor_email)
+
+        cur.execute(
+            "SELECT 1 FROM usuarios_sistemas WHERE usuario_id = %s AND sistema_id = %s",
+            (usuario_id, sistema),
+        )
         if cur.fetchone() is None:
             cur.close()
             pg.close()
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
-        cur.execute("DELETE FROM usuarios WHERE id = %s", (usuario_id,))
+
+        # El usuario es una identidad global: si también tiene acceso a otros
+        # sistemas, solo se le quita el acceso a ESTE (la membresía arrastra
+        # sus roles por FK). Si este era su único sistema, se elimina entero.
+        cur.execute(
+            "SELECT COUNT(*) FROM usuarios_sistemas WHERE usuario_id = %s",
+            (usuario_id,),
+        )
+        otras_membresias = cur.fetchone()[0] - 1
+
+        cur.execute(
+            "DELETE FROM usuarios_sistemas WHERE usuario_id = %s AND sistema_id = %s",
+            (usuario_id, sistema),
+        )
+        if otras_membresias == 0:
+            cur.execute("DELETE FROM usuarios WHERE id = %s", (usuario_id,))
+
         pg.commit()
         cur.close()
         pg.close()
-        return {"ok": True}
+        return {"ok": True, "eliminado_completo": otras_membresias == 0}
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _error_interno(e)
 
 
 @app.get("/empleadores")
-def listar_empleadores():
+def listar_empleadores(token: str | None = Depends(oauth2_scheme)):
+    uid, _ = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
     try:
         conn = get_connection()
         cursor = conn.cursor()
@@ -457,16 +921,19 @@ def listar_empleadores():
         cursor.close()
         return [{"codigo": int(r[0]), "organismo": (r[1] or "").strip()} for r in rows]
     except Exception as e:
-        return {"error": str(e)}
+        raise _error_interno(e)
 
 
 @app.get("/afiliados/buscar")
-def buscar_afiliados(q: str = "", campo: str = ""):
+def buscar_afiliados(q: str = "", campo: str = "", token: str | None = Depends(oauth2_scheme)):
     """Busca afiliados por nombre o DNI.
 
     `campo` puede ser 'dni' o 'nombre'. Si no se envía, se autodetecta según
     si `q` es numérico (compatibilidad con la barra anterior).
     """
+    uid, _ = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
     q = q.strip()
     if len(q) < 2:
         return []
@@ -537,7 +1004,7 @@ def buscar_afiliados(q: str = "", campo: str = ""):
         cursor.close()
         return result
     except Exception as e:
-        return {"error": str(e)}
+        raise _error_interno(e)
 
 
 def _si_no(v):
@@ -591,7 +1058,10 @@ def _fecha(v):
 
 
 @app.get("/afiliados/{documento}")
-def obtener_afiliado(documento: int):
+def obtener_afiliado(documento: int, token: str | None = Depends(oauth2_scheme)):
+    uid, _ = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
     try:
         conn = get_connection()
         cursor = conn.cursor()
@@ -759,7 +1229,7 @@ def obtener_afiliado(documento: int):
             "cud": cud,
         }
     except Exception as e:
-        return {"error": str(e)}
+        raise _error_interno(e)
 
 
 # Mapeo inverso: texto del tipo de documento del front → código numérico de la BD.
@@ -882,8 +1352,24 @@ def _extraer_roles(token: str | None) -> list[str]:
         return []
 
 
-def _solo_lectura(roles: list[str]) -> bool:
-    return roles == ["lectura"]
+# Roles con permiso de edición (allowlist explícita: un usuario sin roles,
+# o con un rol desconocido, NO puede editar).
+_ROLES_EDICION = {"admin", "operador"}
+
+
+def _puede_editar(roles: list[str]) -> bool:
+    return any(r in _ROLES_EDICION for r in roles)
+
+
+def _es_admin(roles: list[str]) -> bool:
+    return "admin" in roles
+
+
+def _error_interno(e: Exception) -> HTTPException:
+    """Loguea el detalle en el servidor y devuelve un error genérico al
+    cliente, para no filtrar SQL, rutas ni datos de conexión."""
+    print(f"[ERROR] {type(e).__name__}: {e}")
+    return HTTPException(status_code=500, detail="Error interno del servidor")
 
 
 def _registrar_auditoria(documento: int, antes: dict, despues: dict,
@@ -897,17 +1383,26 @@ def _registrar_auditoria(documento: int, antes: dict, despues: dict,
     if not cambios:
         return
     try:
-        pg = get_pg_connection()
+        pg = get_usuarios_connection()
         pg_cur = pg.cursor()
+        sistema = _sistema_id(pg_cur)
+        # El id del token puede venir de la base vieja: se resuelve por email
+        # contra la base de identidad para atribuir bien el cambio.
+        if usuario_email:
+            pg_cur.execute("SELECT id FROM usuarios WHERE email = %s", (usuario_email,))
+            row = pg_cur.fetchone()
+            usuario_id = row[0] if row else None
         for columna, val_old, val_new in cambios:
             pg_cur.execute(
                 """INSERT INTO auditoria
-                       (usuario_id, usuario_email, base_datos, esquema, tabla,
-                        registro_id, operacion, columna, valor_anterior, valor_nuevo, fecha)
-                   VALUES (%s, %s, 'sqlserver', 'dbo', 'Afiliados',
-                           %s, 'UPDATE', %s, %s, %s, %s)""",
-                (usuario_id, usuario_email, str(documento), columna, val_old, val_new,
-                 datetime.now(_ART).replace(tzinfo=None)),
+                       (usuario_id, usuario_email, sistema_id, esquema, tabla,
+                        registro_id, operacion, columna, valor_anterior, valor_nuevo,
+                        fecha, detalle)
+                   VALUES (%s, %s, %s, 'dbo', 'Afiliados',
+                           %s, 'UPDATE', %s, %s, %s, %s, %s)""",
+                (usuario_id, usuario_email, sistema, str(documento), columna,
+                 val_old, val_new, datetime.now(_ART).replace(tzinfo=None),
+                 json.dumps({"base_datos": "sqlserver"})),
             )
         pg.commit()
         pg_cur.close()
@@ -916,12 +1411,127 @@ def _registrar_auditoria(documento: int, antes: dict, despues: dict,
         print(f"[AUDITORIA ERROR] {e}")
 
 
+@app.get("/auditoria")
+def consultar_auditoria(
+    tabla: str = "",
+    q: str = "",
+    limit: int = 50,
+    offset: int = 0,
+    token: str | None = Depends(oauth2_scheme),
+):
+    """Historial de auditoría de la base de identidad (solo administradores).
+
+    `tabla` filtra por tabla auditada; `q` busca en email del usuario o en el
+    id del registro afectado."""
+    _requerir_admin(token)
+    limit = max(1, min(limit, 200))
+    offset = max(0, offset)
+    try:
+        pg = get_usuarios_connection()
+        cur = pg.cursor()
+        conds = []
+        params: list = []
+        if tabla.strip():
+            conds.append("a.tabla = %s")
+            params.append(tabla.strip())
+        if q.strip():
+            conds.append("(a.usuario_email::TEXT ILIKE %s OR a.registro_id ILIKE %s)")
+            like = f"%{q.strip()}%"
+            params.extend([like, like])
+        where = f"WHERE {' AND '.join(conds)}" if conds else ""
+        cur.execute(
+            f"""SELECT a.id, a.fecha, a.usuario_email, a.tabla, a.registro_id,
+                       a.operacion, a.columna, a.valor_anterior, a.valor_nuevo
+                FROM auditoria a
+                {where}
+                ORDER BY a.fecha DESC, a.id DESC
+                LIMIT %s OFFSET %s""",
+            params + [limit + 1, offset],
+        )
+        rows = cur.fetchall()
+        cur.execute("SELECT DISTINCT tabla FROM auditoria ORDER BY tabla")
+        tablas = [r[0] for r in cur.fetchall()]
+        cur.close()
+        pg.close()
+        hay_mas = len(rows) > limit
+        return {
+            "tablas": tablas,
+            "hay_mas": hay_mas,
+            "registros": [
+                {
+                    "id": r[0],
+                    "fecha": r[1].isoformat() if r[1] else None,
+                    "usuario_email": r[2],
+                    "tabla": r[3],
+                    "registro_id": r[4],
+                    "operacion": r[5],
+                    "columna": r[6],
+                    "valor_anterior": r[7],
+                    "valor_nuevo": r[8],
+                }
+                for r in rows[:limit]
+            ],
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _error_interno(e)
+
+
+@app.get("/intentos-login")
+def consultar_intentos_login(
+    limit: int = 50,
+    offset: int = 0,
+    solo_fallidos: bool = False,
+    token: str | None = Depends(oauth2_scheme),
+):
+    """Bitácora de accesos al sistema (solo administradores)."""
+    _requerir_admin(token)
+    limit = max(1, min(limit, 200))
+    offset = max(0, offset)
+    try:
+        pg = get_usuarios_connection()
+        cur = pg.cursor()
+        where = "WHERE NOT exito" if solo_fallidos else ""
+        cur.execute(
+            f"""SELECT id, fecha, email, exito, motivo, ip, user_agent
+                FROM intentos_login
+                {where}
+                ORDER BY fecha DESC, id DESC
+                LIMIT %s OFFSET %s""",
+            (limit + 1, offset),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        pg.close()
+        hay_mas = len(rows) > limit
+        return {
+            "hay_mas": hay_mas,
+            "registros": [
+                {
+                    "id": r[0],
+                    "fecha": r[1].isoformat() if r[1] else None,
+                    "email": r[2],
+                    "exito": r[3],
+                    "motivo": r[4],
+                    "ip": str(r[5]) if r[5] else None,
+                    "user_agent": r[6],
+                }
+                for r in rows[:limit]
+            ],
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _error_interno(e)
+
+
 @app.put("/afiliados/{documento}")
 def actualizar_afiliado(documento: int, datos: dict = Body(...), token: str | None = Depends(oauth2_scheme)):
     uid, uemail = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
-    if _solo_lectura(_extraer_roles(token)):
+    if not _puede_editar(_extraer_roles(token)):
         raise HTTPException(status_code=403, detail="Sin permisos para editar")
     try:
         fechas = datos.get("fechas") or {}
@@ -1059,7 +1669,7 @@ def actualizar_afiliado(documento: int, datos: dict = Body(...), token: str | No
 
         return {"ok": True, "documento": documento}
     except Exception as e:
-        return {"error": str(e)}
+        raise _error_interno(e)
 
 
 class DerivacionRequest(BaseModel):
@@ -1304,7 +1914,7 @@ def listar_movimientos_caratula(derivacion_id: int, token: str | None = Depends(
             for r in rows
         ]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _error_interno(e)
 
 
 @app.post("/caratulas/derivacion/{derivacion_id}/movimientos")
@@ -1312,7 +1922,7 @@ def crear_movimiento_caratula(derivacion_id: int, datos: dict = Body(...), token
     uid, uemail = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
-    if _solo_lectura(_extraer_roles(token)):
+    if not _puede_editar(_extraer_roles(token)):
         raise HTTPException(status_code=403, detail="Sin permisos para registrar movimientos")
     area = _to_str(datos.get("area"))
     if not area:
@@ -1337,7 +1947,7 @@ def crear_movimiento_caratula(derivacion_id: int, datos: dict = Body(...), token
             "agente": uemail or str(uid),
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _error_interno(e)
 
 
 @app.get("/coberturas")
@@ -1354,7 +1964,7 @@ def listar_coberturas(token: str | None = Depends(oauth2_scheme)):
         pg.close()
         return [{"id": r[0], "nombre": r[1]} for r in rows]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _error_interno(e)
 
 
 @app.post("/coberturas")
@@ -1362,7 +1972,7 @@ def crear_cobertura(nombre: str, token: str | None = Depends(oauth2_scheme)):
     uid, _ = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
-    if _solo_lectura(_extraer_roles(token)):
+    if not _puede_editar(_extraer_roles(token)):
         raise HTTPException(status_code=403, detail="Sin permisos")
     try:
         pg = get_pg_connection()
@@ -1377,7 +1987,7 @@ def crear_cobertura(nombre: str, token: str | None = Depends(oauth2_scheme)):
         pg.close()
         return {"id": row[0], "nombre": nombre}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _error_interno(e)
 
 
 @app.get("/tipos-traslado")
@@ -1394,7 +2004,7 @@ def listar_tipos_traslado(token: str | None = Depends(oauth2_scheme)):
         pg.close()
         return [{"id": r[0], "nombre": r[1]} for r in rows]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _error_interno(e)
 
 
 @app.post("/tipos-traslado")
@@ -1402,7 +2012,7 @@ def crear_tipo_traslado(nombre: str, token: str | None = Depends(oauth2_scheme))
     uid, _ = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
-    if _solo_lectura(_extraer_roles(token)):
+    if not _puede_editar(_extraer_roles(token)):
         raise HTTPException(status_code=403, detail="Sin permisos")
     try:
         pg = get_pg_connection()
@@ -1417,7 +2027,7 @@ def crear_tipo_traslado(nombre: str, token: str | None = Depends(oauth2_scheme))
         pg.close()
         return {"id": row[0], "nombre": nombre}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _error_interno(e)
 
 
 @app.get("/tipos-alojamiento")
@@ -1434,7 +2044,7 @@ def listar_tipos_alojamiento(token: str | None = Depends(oauth2_scheme)):
         pg.close()
         return [{"id": r[0], "nombre": r[1]} for r in rows]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _error_interno(e)
 
 
 @app.post("/tipos-alojamiento")
@@ -1442,7 +2052,7 @@ def crear_tipo_alojamiento(nombre: str, token: str | None = Depends(oauth2_schem
     uid, _ = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
-    if _solo_lectura(_extraer_roles(token)):
+    if not _puede_editar(_extraer_roles(token)):
         raise HTTPException(status_code=403, detail="Sin permisos")
     try:
         pg = get_pg_connection()
@@ -1457,7 +2067,7 @@ def crear_tipo_alojamiento(nombre: str, token: str | None = Depends(oauth2_schem
         pg.close()
         return {"id": row[0], "nombre": nombre}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _error_interno(e)
 
 
 
@@ -1475,7 +2085,7 @@ def listar_centros_medicos(token: str | None = Depends(oauth2_scheme)):
         pg.close()
         return [{"id": r[0], "nombre": r[1]} for r in rows]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _error_interno(e)
 
 
 @app.post("/centros-medicos")
@@ -1483,7 +2093,7 @@ def crear_centro_medico(nombre: str, token: str | None = Depends(oauth2_scheme))
     uid, _ = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
-    if _solo_lectura(_extraer_roles(token)):
+    if not _puede_editar(_extraer_roles(token)):
         raise HTTPException(status_code=403, detail="Sin permisos")
     try:
         pg = get_pg_connection()
@@ -1498,7 +2108,7 @@ def crear_centro_medico(nombre: str, token: str | None = Depends(oauth2_scheme))
         pg.close()
         return {"id": row[0], "nombre": nombre}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _error_interno(e)
 
 
 @app.get("/destinos")
@@ -1515,7 +2125,7 @@ def listar_destinos(token: str | None = Depends(oauth2_scheme)):
         pg.close()
         return [{"id": r[0], "nombre": r[1]} for r in rows]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _error_interno(e)
 
 
 @app.post("/destinos")
@@ -1523,7 +2133,7 @@ def crear_destino(nombre: str, token: str | None = Depends(oauth2_scheme)):
     uid, _ = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
-    if _solo_lectura(_extraer_roles(token)):
+    if not _puede_editar(_extraer_roles(token)):
         raise HTTPException(status_code=403, detail="Sin permisos")
     try:
         pg = get_pg_connection()
@@ -1538,7 +2148,7 @@ def crear_destino(nombre: str, token: str | None = Depends(oauth2_scheme)):
         pg.close()
         return {"id": row[0], "nombre": nombre}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _error_interno(e)
 
 
 @app.get("/lugares-alojamiento")
@@ -1555,7 +2165,7 @@ def listar_lugares_alojamiento(token: str | None = Depends(oauth2_scheme)):
         pg.close()
         return [{"id": r[0], "nombre": r[1]} for r in rows]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _error_interno(e)
 
 
 @app.post("/lugares-alojamiento")
@@ -1563,7 +2173,7 @@ def crear_lugar_alojamiento(nombre: str, token: str | None = Depends(oauth2_sche
     uid, _ = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
-    if _solo_lectura(_extraer_roles(token)):
+    if not _puede_editar(_extraer_roles(token)):
         raise HTTPException(status_code=403, detail="Sin permisos")
     try:
         pg = get_pg_connection()
@@ -1578,7 +2188,7 @@ def crear_lugar_alojamiento(nombre: str, token: str | None = Depends(oauth2_sche
         pg.close()
         return {"id": row[0], "nombre": nombre}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _error_interno(e)
 
 
 # Mapa endpoint -> tabla guía, para el borrado lógico de opciones.
@@ -1598,7 +2208,7 @@ def _baja_opcion_catalogo(tabla: str, id_opcion: int, token: str | None):
     uid, _ = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
-    if _solo_lectura(_extraer_roles(token)):
+    if not _puede_editar(_extraer_roles(token)):
         raise HTTPException(status_code=403, detail="Sin permisos")
     try:
         pg = get_pg_connection()
@@ -1614,7 +2224,7 @@ def _baja_opcion_catalogo(tabla: str, id_opcion: int, token: str | None):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _error_interno(e)
 
 
 @app.delete("/coberturas/{id_opcion}")
@@ -1748,7 +2358,7 @@ def listar_derivaciones(mes: str = "", documento: str = "", token: str | None = 
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _error_interno(e)
 
 
 @app.get("/legajos/recientes")
@@ -1785,7 +2395,7 @@ def listar_legajos_recientes(token: str | None = Depends(oauth2_scheme)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _error_interno(e)
 
 
 @app.get("/derivaciones/meses")
@@ -1810,7 +2420,7 @@ def listar_meses_derivaciones(token: str | None = Depends(oauth2_scheme)):
             for r in rows
         ]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _error_interno(e)
 
 
 @app.post("/derivaciones")
@@ -1818,7 +2428,7 @@ def crear_derivacion(datos: DerivacionRequest, token: str | None = Depends(oauth
     uid, uemail = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
-    if _solo_lectura(_extraer_roles(token)):
+    if not _puede_editar(_extraer_roles(token)):
         raise HTTPException(status_code=403, detail="Sin permisos para crear derivaciones")
     try:
         pg = get_pg_connection()
@@ -1888,7 +2498,7 @@ def crear_derivacion(datos: DerivacionRequest, token: str | None = Depends(oauth
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _error_interno(e)
 
 
 @app.put("/derivaciones/{derivacion_id}")
@@ -1896,7 +2506,7 @@ def actualizar_derivacion(derivacion_id: int, datos: DerivacionRequest, token: s
     uid, _ = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
-    if _solo_lectura(_extraer_roles(token)):
+    if not _puede_editar(_extraer_roles(token)):
         raise HTTPException(status_code=403, detail="Sin permisos para editar derivaciones")
     try:
         pg = get_pg_connection()
@@ -1976,7 +2586,7 @@ def actualizar_derivacion(derivacion_id: int, datos: DerivacionRequest, token: s
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _error_interno(e)
 
 
 @app.delete("/derivaciones/{derivacion_id}")
@@ -1984,7 +2594,7 @@ def eliminar_derivacion(derivacion_id: int, token: str | None = Depends(oauth2_s
     uid, _ = _extraer_usuario(token)
     if uid is None:
         raise HTTPException(status_code=401, detail="No autenticado")
-    if _solo_lectura(_extraer_roles(token)):
+    if not _puede_editar(_extraer_roles(token)):
         raise HTTPException(status_code=403, detail="Sin permisos para eliminar derivaciones")
     try:
         pg = get_pg_connection()
@@ -2002,12 +2612,15 @@ def eliminar_derivacion(derivacion_id: int, token: str | None = Depends(oauth2_s
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _error_interno(e)
 
 
 @app.get("/patologias")
-def patologias_todas():
+def patologias_todas(token: str | None = Depends(oauth2_scheme)):
     """Todas las patologías de la tabla PATOLOGIAS (SQL Server)."""
+    uid, _ = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
     try:
         conn = get_connection()
         cursor = conn.cursor()
@@ -2029,12 +2642,15 @@ def patologias_todas():
             for r in rows
         ]
     except Exception as e:
-        return {"error": str(e)}
+        raise _error_interno(e)
 
 
 @app.get("/diagnosticos")
-def diagnosticos_todos():
+def diagnosticos_todos(token: str | None = Depends(oauth2_scheme)):
     """Todos los diagnósticos de la tabla CIE_diagnosticos (SQL Server)."""
+    uid, _ = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
     try:
         conn = get_connection()
         cursor = conn.cursor()
@@ -2051,16 +2667,19 @@ def diagnosticos_todos():
             for r in rows
         ]
     except Exception as e:
-        return {"error": str(e)}
+        raise _error_interno(e)
 
 
 @app.get("/patologias/buscar")
-def patologias_buscar(q: str = "", limit: int = 15):
+def patologias_buscar(q: str = "", limit: int = 15, token: str | None = Depends(oauth2_scheme)):
     """Busca patologías por nombre (LIKE) y devuelve sólo las primeras N.
 
     Evita bajar toda la tabla PATOLOGIAS al front (que traba el navegador):
     el usuario escribe texto y el servidor filtra + limita.
     """
+    uid, _ = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
     q = (q or "").strip()
     if len(q) < 2:
         return []
@@ -2088,16 +2707,19 @@ def patologias_buscar(q: str = "", limit: int = 15):
             for r in rows
         ]
     except Exception as e:
-        return {"error": str(e)}
+        raise _error_interno(e)
 
 
 @app.get("/diagnosticos/buscar")
-def diagnosticos_buscar(q: str = "", limit: int = 15):
+def diagnosticos_buscar(q: str = "", limit: int = 15, token: str | None = Depends(oauth2_scheme)):
     """Busca diagnósticos CIE por código o descripción (LIKE), TOP N.
 
     Definido antes que /diagnosticos/{cie_clave} para que "buscar" no
     sea interpretado como una clave CIE.
     """
+    uid, _ = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
     q = (q or "").strip()
     if len(q) < 2:
         return []
@@ -2122,16 +2744,19 @@ def diagnosticos_buscar(q: str = "", limit: int = 15):
             for r in rows
         ]
     except Exception as e:
-        return {"error": str(e)}
+        raise _error_interno(e)
 
 
 @app.get("/patologias/lista")
-def patologias_lista(q: str = "", page: int = 1, limit: int = 10):
+def patologias_lista(q: str = "", page: int = 1, limit: int = 10, token: str | None = Depends(oauth2_scheme)):
     """Lista paginada de patologías (para el popup: ver todas o filtrar).
 
     Devuelve un bloque de `limit` filas más el total, para poder pasar de
     página en página sin bajar toda la tabla de una.
     """
+    uid, _ = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
     q = (q or "").strip()
     page = max(1, int(page or 1))
     limit = max(1, min(int(limit or 10), 50))
@@ -2165,16 +2790,19 @@ def patologias_lista(q: str = "", page: int = 1, limit: int = 10):
         pages = (total + limit - 1) // limit if total else 0
         return {"items": items, "total": total, "page": page, "pages": pages}
     except Exception as e:
-        return {"error": str(e)}
+        raise _error_interno(e)
 
 
 @app.get("/diagnosticos/lista")
-def diagnosticos_lista(q: str = "", page: int = 1, limit: int = 10):
+def diagnosticos_lista(q: str = "", page: int = 1, limit: int = 10, token: str | None = Depends(oauth2_scheme)):
     """Lista paginada de diagnósticos CIE (para el popup). Filtra por código
     o descripción cuando hay texto; sin texto devuelve todos, paginados.
 
     Definido antes que /diagnosticos/{cie_clave} para evitar la colisión.
     """
+    uid, _ = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
     q = (q or "").strip()
     page = max(1, int(page or 1))
     limit = max(1, min(int(limit or 10), 50))
@@ -2208,11 +2836,14 @@ def diagnosticos_lista(q: str = "", page: int = 1, limit: int = 10):
         pages = (total + limit - 1) // limit if total else 0
         return {"items": items, "total": total, "page": page, "pages": pages}
     except Exception as e:
-        return {"error": str(e)}
+        raise _error_interno(e)
 
 
 @app.get("/patologias/afiliado/{documento}")
-def patologias_afiliado(documento: int):
+def patologias_afiliado(documento: int, token: str | None = Depends(oauth2_scheme)):
+    uid, _ = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
     try:
         conn = get_connection()
         cursor = conn.cursor()
@@ -2237,11 +2868,14 @@ def patologias_afiliado(documento: int):
             for r in rows
         ]
     except Exception as e:
-        return {"error": str(e)}
+        raise _error_interno(e)
 
 
 @app.get("/diagnosticos/{cie_clave}")
-def diagnosticos_por_cie(cie_clave: str):
+def diagnosticos_por_cie(cie_clave: str, token: str | None = Depends(oauth2_scheme)):
+    uid, _ = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
     try:
         conn = get_connection()
         cursor = conn.cursor()
@@ -2264,11 +2898,21 @@ def diagnosticos_por_cie(cie_clave: str):
             for r in rows
         ]
     except Exception as e:
-        return {"error": str(e)}
+        raise _error_interno(e)
+
+
+# Los endpoints db-* exponen el esquema de la base: solo para administradores.
+def _requerir_admin(token: str | None):
+    uid, _ = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    if not _es_admin(_extraer_roles(token)):
+        raise HTTPException(status_code=403, detail="Solo disponible para administradores")
 
 
 @app.get("/db-columnas/{tabla}")
-def listar_columnas(tabla: str):
+def listar_columnas(tabla: str, token: str | None = Depends(oauth2_scheme)):
+    _requerir_admin(token)
     try:
         conn = get_connection()
         cursor = conn.cursor()
@@ -2280,11 +2924,12 @@ def listar_columnas(tabla: str):
         cursor.close()
         return [{"columna": r[0], "tipo": r[1]} for r in rows]
     except Exception as e:
-        return {"error": str(e)}
+        raise _error_interno(e)
 
 
 @app.get("/db-tablas")
-def listar_tablas():
+def listar_tablas(token: str | None = Depends(oauth2_scheme)):
+    _requerir_admin(token)
     try:
         conn = get_connection()
         cursor = conn.cursor()
@@ -2295,11 +2940,12 @@ def listar_tablas():
         cursor.close()
         return [{"schema": r[0], "tabla": r[1]} for r in rows]
     except Exception as e:
-        return {"error": str(e)}
+        raise _error_interno(e)
 
 
 @app.get("/db-test")
-def test_db():
+def test_db(token: str | None = Depends(oauth2_scheme)):
+    _requerir_admin(token)
     try:
         conn = get_connection()
         cursor = conn.cursor()
@@ -2313,8 +2959,8 @@ def test_db():
             "server": server_name,
         }
     except Exception as e:
+        print(f"[ERROR] db-test: {type(e).__name__}: {e}")
         return {
             "status": "error",
             "message": "No se pudo conectar a SQL Server.",
-            "error": str(e),
         }

@@ -500,4 +500,224 @@
   .us-modal {
     max-width: 100%;
   }
+
+  .us-roles-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ─── Tabs ───────────────────────────────────────────────────── */
+.us-tabs {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  padding: 0.35rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.us-tab {
+  padding: 0.55rem 1.1rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--r-md, 8px);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.us-tab:hover {
+  color: var(--text);
+  background: var(--bg, rgba(0, 0, 0, 0.04));
+}
+
+.us-tab--active {
+  color: #fff;
+  background: var(--primary, #2563eb);
+}
+
+.us-toolbar-hint {
+  flex: 1;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.us-fecha-cell {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* ─── Select y checkbox de filtros ───────────────────────────── */
+.us-select {
+  padding: 0.5rem 0.85rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md, 8px);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.us-check-label {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+/* ─── Roles: grilla de tarjetas ──────────────────────────────── */
+.us-roles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.85rem;
+  padding: 1rem;
+}
+
+.us-rol-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.05));
+}
+
+.us-rol-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.us-rol-card-count {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.us-rol-card-desc {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.us-rol-card-perms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  min-height: 1.5rem;
+}
+
+.us-rol-card-empty {
+  font-size: 0.78rem;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.us-perm-chip {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.72rem;
+  font-family: ui-monospace, monospace;
+  color: var(--text);
+  background: var(--bg, rgba(0, 0, 0, 0.05));
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.us-rol-card-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: auto;
+  padding-top: 0.35rem;
+}
+
+/* ─── Lista de permisos en el modal de rol ───────────────────── */
+.us-perm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md, 8px);
+}
+
+.us-perm-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.83rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.us-perm-item:hover {
+  background: var(--bg, rgba(0, 0, 0, 0.04));
+}
+
+.us-perm-item-name {
+  color: var(--text);
+}
+
+.us-perm-item-code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+/* ─── Tabla compacta (auditoría / accesos) ───────────────────── */
+.us-table--compact th,
+.us-table--compact td {
+  padding: 0.45rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+.us-valor-cell {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.us-op {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 999px;
+}
+
+.us-op--insert {
+  color: #15803d;
+  background: rgba(34, 197, 94, 0.15);
+}
+
+.us-op--update {
+  color: #b45309;
+  background: rgba(245, 158, 11, 0.15);
+}
+
+.us-op--delete {
+  color: #b91c1c;
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.us-load-more {
+  display: flex;
+  justify-content: center;
+  padding: 0.75rem;
 }
