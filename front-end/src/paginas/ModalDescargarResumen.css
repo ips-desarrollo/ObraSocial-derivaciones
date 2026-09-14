@@ -1,0 +1,316 @@
+/* ─── Modal Descargar Resumen ─────────────────────────────────── */
+
+.mdr-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(30, 42, 58, 0.45);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: mdr-fade-in 0.15s ease-out;
+}
+
+@keyframes mdr-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.mdr-modal {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 440px;
+  margin: 1rem;
+  animation: mdr-slide-up 0.2s ease-out;
+  overflow: hidden;
+}
+
+@keyframes mdr-slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Header ── */
+.mdr-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.mdr-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.mdr-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: var(--r-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.mdr-close:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+/* ── Secciones ── */
+.mdr-section {
+  padding: 0.85rem 1.25rem;
+}
+
+.mdr-label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--label);
+  margin-bottom: 0.5rem;
+}
+
+.mdr-label-sm {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 0.3rem;
+}
+
+/* ── Toggle grupo (PDF / Excel) ── */
+.mdr-toggle-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.mdr-toggle {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: inherit;
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.mdr-toggle:hover {
+  border-color: var(--ips-border);
+  color: var(--ips);
+}
+
+.mdr-toggle--active {
+  border-color: var(--ips);
+  background: var(--ips-subtle);
+  color: var(--ips);
+}
+
+/* ── Tabs de periodo ── */
+.mdr-periodo-tabs {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+
+.mdr-tab {
+  flex: 1;
+  padding: 0.5rem 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: inherit;
+  background: var(--surface);
+  border: none;
+  border-right: 1px solid var(--border);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.mdr-tab:last-child {
+  border-right: none;
+}
+
+.mdr-tab:hover {
+  background: var(--surface-2);
+}
+
+.mdr-tab--active {
+  background: var(--ips);
+  color: #fff;
+}
+
+.mdr-tab--active:hover {
+  background: var(--ips-dark);
+}
+
+/* ── Select ── */
+.mdr-select {
+  width: 100%;
+  padding: 0.55rem 0.85rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.mdr-select:focus {
+  border-color: var(--ips);
+}
+
+/* ── Rango de fechas ── */
+.mdr-rango {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.mdr-rango-field {
+  flex: 1;
+}
+
+.mdr-input {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.mdr-input:focus {
+  border-color: var(--ips);
+}
+
+/* ── Error ── */
+.mdr-error {
+  margin: 0 1.25rem 0.5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8rem;
+  color: var(--danger);
+  background: var(--danger-bg);
+  border: 1px solid rgba(220, 38, 38, 0.15);
+  border-radius: var(--r-sm);
+}
+
+/* ── Acciones ── */
+.mdr-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.85rem 1.25rem;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.mdr-btn-cancel {
+  padding: 0.55rem 1rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: inherit;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.mdr-btn-cancel:hover {
+  background: var(--surface-2);
+  border-color: var(--border-hover);
+}
+
+.mdr-btn-generar {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1.15rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-family: inherit;
+  background: var(--ips);
+  color: #fff;
+  border: 1px solid var(--ips);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.mdr-btn-generar:hover:not(:disabled) {
+  background: var(--ips-dark);
+}
+
+.mdr-btn-generar:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.mdr-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: mdr-spin 0.6s linear infinite;
+}
+
+@keyframes mdr-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Responsive ── */
+@media (max-width: 480px) {
+  .mdr-modal {
+    max-width: 100%;
+    margin: 0.5rem;
+  }
+
+  .mdr-periodo-tabs {
+    flex-wrap: wrap;
+  }
+
+  .mdr-tab {
+    flex: 1 1 45%;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .mdr-rango {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+}

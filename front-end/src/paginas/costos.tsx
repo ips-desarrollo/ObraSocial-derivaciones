@@ -3,6 +3,7 @@ import NavBar from './NavBar';
 import logoSiglas from '../multimedia/logo-siglas.svg';
 import { fetchAuth, verificarSesion, API } from '../auth';
 import { Derivacion, formatMes, formatMonto } from './FormularioDerivacion';
+import ModalDescargarResumen from './ModalDescargarResumen';
 import './globales.css';
 import './costos.css';
 import './derivaciones.css';
@@ -135,6 +136,7 @@ export default function Costos() {
   const [derivaciones, setDerivaciones] = useState<Derivacion[]>([]);
   const [mesSeleccionado, setMesSeleccionado] = useState(mesActual());
   const [loading, setLoading] = useState(true);
+  const [modalDescarga, setModalDescarga] = useState(false);
 
   const cargarDerivaciones = useCallback(async () => {
     if (!verificarSesion()) return;
@@ -192,6 +194,18 @@ export default function Costos() {
           <div className="dv-toolbar-spacer" />
           <h1 className="dv-toolbar-title">Control de Costos</h1>
           <div className="dv-toolbar-spacer" />
+          <button
+            className="dv-btn dv-btn--primary"
+            onClick={() => setModalDescarga(true)}
+            title="Descargar resumen"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Descargar resumen
+          </button>
           <span className="dv-toolbar-mes">{formatMes(mesSeleccionado)}</span>
         </div>
 
@@ -263,6 +277,12 @@ export default function Costos() {
           )}
         </div>
       </div>
+
+      <ModalDescargarResumen
+        abierto={modalDescarga}
+        onCerrar={() => setModalDescarga(false)}
+        mesActual={mesSeleccionado}
+      />
     </>
   );
 }
