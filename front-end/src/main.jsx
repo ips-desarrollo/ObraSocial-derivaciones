@@ -10,6 +10,8 @@ import Legajo from './paginas/legajo.tsx'
 import Costos from './paginas/costos.tsx'
 import './index.css'
 
+const BASE = import.meta.env.VITE_BASE_PATH || '/'
+
 function ProtectedUsuarios() {
   try {
     const u = localStorage.getItem('usuario')
@@ -25,7 +27,7 @@ function ProtectedUsuarios() {
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename={BASE}>
       <Routes>
         <Route path="/" element={<App />} />
         <Route path="/inicio" element={<InicioTramites />} />

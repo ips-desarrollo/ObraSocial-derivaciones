@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from jose import jwt, JWTError
 from passlib.context import CryptContext
 from pydantic import BaseModel
+from portal_auth import PortalAuthMiddleware
 
 load_dotenv()
 
@@ -34,6 +35,7 @@ _cors_origins = [
     for o in os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
     if o.strip()
 ]
+app.add_middleware(PortalAuthMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
@@ -338,6 +340,79 @@ def login(datos: LoginRequest, request: Request):
         pg.close()
 
         _registrar_intento_login(email_login, user_id, sistema, True, None, ip, user_agent)
+
+        token = crear_token({
+            "sub": str(user_id),
+            "email": email,
+            "nombre": nombre,
+            "roles": roles or [],
+        })
+
+        return {
+            "token": token,
+            "usuario": {
+                "id": user_id,
+                "nombre": nombre,
+                "email": email,
+                "roles": roles or [],
+            },
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _error_interno(e)
+
+
+@app.get("/auth/portal-login")
+def portal_login(request: Request):
+    """Intercambio automático: cookie del portal → JWT interno.
+
+    El middleware SSO ya verificó la cookie antes de llegar acá, así que
+    request.state.portal_user contiene la sesión válida del portal.
+    Este endpoint busca al usuario en la BD de identidad y genera un JWT
+    con los mismos datos que POST /login, sin pedir credenciales.
+    """
+    portal_user = getattr(request.state, "portal_user", None)
+    if not portal_user:
+        raise HTTPException(status_code=401, detail="Sesión del portal no disponible")
+
+    email_portal = (portal_user.get("email") or "").strip().lower()
+    if not email_portal:
+        raise HTTPException(status_code=401, detail="Sesión del portal sin email")
+
+    try:
+        pg = get_usuarios_connection()
+        cur = pg.cursor()
+        sistema = _sistema_id(cur)
+        cur.execute(
+            """SELECT u.id, u.nombre_completo, u.email, u.activo,
+                      us.activo AS membresia_activa,
+                      ARRAY(SELECT r.nombre
+                            FROM usuarios_roles ur
+                            JOIN roles r ON r.id = ur.rol_id
+                            WHERE ur.usuario_id = u.id AND ur.sistema_id = %s
+                            ORDER BY r.nombre) AS roles
+               FROM usuarios u
+               LEFT JOIN usuarios_sistemas us
+                      ON us.usuario_id = u.id AND us.sistema_id = %s
+               WHERE u.email = %s""",
+            (sistema, sistema, email_portal),
+        )
+        row = cur.fetchone()
+
+        if row is None:
+            cur.close()
+            pg.close()
+            raise HTTPException(status_code=403, detail="Usuario no registrado en este sistema")
+
+        user_id, nombre, email, activo, membresia_activa, roles = row
+        cur.close()
+        pg.close()
+
+        if not activo:
+            raise HTTPException(status_code=403, detail="Cuenta deshabilitada")
+        if not membresia_activa:
+            raise HTTPException(status_code=403, detail="Sin acceso a este sistema")
 
         token = crear_token({
             "sub": str(user_id),
