@@ -74,6 +74,7 @@ class PortalAuthMiddleware(BaseHTTPMiddleware):
 
         cookie = request.cookies.get(COOKIE_NAME)
         if not cookie:
+            print(f"[SSO] 401 sin cookie — path={path} cookies={list(request.cookies.keys())}")
             return JSONResponse(
                 status_code=401,
                 content={
@@ -84,6 +85,7 @@ class PortalAuthMiddleware(BaseHTTPMiddleware):
 
         session = _verificar_cookie(cookie)
         if session is None:
+            print(f"[SSO] 401 firma inválida — path={path} cookie_len={len(cookie)}")
             return JSONResponse(
                 status_code=401,
                 content={
