@@ -25,7 +25,7 @@ if not SESSION_SECRET:
 SISTEMA_CODIGO = os.getenv("SISTEMA_CODIGO", "obra_social")
 LOGIN_URL = os.getenv("PORTAL_LOGIN_URL", "http://192.168.42.191/login")
 
-_RUTAS_PUBLICAS = frozenset({"/", "/health", "/login", "/docs", "/openapi.json"})
+_RUTAS_PUBLICAS = frozenset({"/", "/health", "/docs", "/openapi.json"})
 
 
 def _b64url_decode(data: str) -> bytes:

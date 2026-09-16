@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import logoNombre from './multimedia/logo-nombre.svg'
 import { loginDesdePortal } from './auth'
 import './paginas/globales.css'
 
 function App() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const [listo, setListo] = useState(false)
   const [error, setError] = useState(null)
 
   useEffect(() => {
@@ -15,7 +17,10 @@ function App() {
       const ok = await loginDesdePortal()
       if (cancelled) return
       if (ok) {
-        navigate('/inicio', { replace: true })
+        setListo(true)
+        if (location.pathname === '/') {
+          navigate('/inicio', { replace: true })
+        }
       } else {
         setError('No se pudo verificar tu sesión. Redirigiendo al portal...')
       }
@@ -23,27 +28,45 @@ function App() {
 
     iniciar()
     return () => { cancelled = true }
-  }, [navigate])
+  }, [navigate, location.pathname])
 
-  return (
-    <div className="login-page">
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: '100vh',
-        gap: '1.5rem',
-      }}>
-        <img src={logoNombre} alt="Obra Social IPS" style={{ height: 64 }} />
-        {error ? (
+  if (error) {
+    return (
+      <div className="login-page">
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+          gap: '1.5rem',
+        }}>
+          <img src={logoNombre} alt="Obra Social IPS" style={{ height: 64 }} />
           <p style={{ color: '#b91c1c', textAlign: 'center', maxWidth: 360 }}>{error}</p>
-        ) : (
-          <p style={{ color: '#64748b' }}>Ingresando al sistema...</p>
-        )}
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
+
+  if (!listo) {
+    return (
+      <div className="login-page">
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+          gap: '1.5rem',
+        }}>
+          <img src={logoNombre} alt="Obra Social IPS" style={{ height: 64 }} />
+          <p style={{ color: '#64748b' }}>Ingresando al sistema...</p>
+        </div>
+      </div>
+    )
+  }
+
+  return <Outlet />
 }
 
 export default App

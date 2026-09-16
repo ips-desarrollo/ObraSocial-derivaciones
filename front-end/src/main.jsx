@@ -29,13 +29,15 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter basename={BASE}>
       <Routes>
-        <Route path="/" element={<App />} />
-        <Route path="/inicio" element={<InicioTramites />} />
-        <Route path="/afiliados" element={<Afiliados />} />
-        <Route path="/derivaciones" element={<Derivaciones />} />
-        <Route path="/legajo" element={<Legajo />} />
-        <Route path="/costos" element={<Costos />} />
-        <Route path="/usuarios" element={<ProtectedUsuarios />} />
+        <Route element={<App />}>
+          <Route index element={null} />
+          <Route path="/inicio" element={<InicioTramites />} />
+          <Route path="/afiliados" element={<Afiliados />} />
+          <Route path="/derivaciones" element={<Derivaciones />} />
+          <Route path="/legajo" element={<Legajo />} />
+          <Route path="/costos" element={<Costos />} />
+          <Route path="/usuarios" element={<ProtectedUsuarios />} />
+        </Route>
       </Routes>
     </BrowserRouter>
   </React.StrictMode>,
