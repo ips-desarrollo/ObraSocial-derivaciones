@@ -28,11 +28,11 @@ def main():
         sys.exit(1)
 
     pg = psycopg2.connect(
-        host=os.getenv("USR_HOST", "localhost"),
-        port=int(os.getenv("USR_PORT", "5432")),
-        dbname=os.getenv("USR_NAME", "usuarios"),
-        user=os.getenv("USR_USER", "postgres"),
-        password=os.getenv("USR_PASSWORD", "postgres"),
+        host=os.getenv("USR_HOST") or "localhost",
+        port=int(os.getenv("USR_PORT") or "5432"),
+        dbname=os.getenv("USR_NAME") or "usuarios",
+        user=os.getenv("USR_USER") or "postgres",
+        password=os.getenv("USR_PASSWORD") or "postgres",
     )
     cur = pg.cursor()
 
