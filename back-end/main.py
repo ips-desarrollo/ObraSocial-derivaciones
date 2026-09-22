@@ -87,9 +87,10 @@ def crear_token(data: dict) -> str:
 def _build_conn_str():
     server   = os.getenv("DB_SERVER",   "")
     database = os.getenv("DB_NAME",     "")
-    driver   = os.getenv("DB_DRIVER",   "ODBC Driver 17 for SQL Server")
+    driver   = os.getenv("DB_DRIVER",   "FreeTDS")
     uid      = os.getenv("DB_USER",     "")
     pwd      = os.getenv("DB_PASSWORD", "")
+    port     = os.getenv("DB_PORT",     "1433")
 
     if not server or not database:
         raise RuntimeError(
@@ -101,15 +102,19 @@ def _build_conn_str():
         return (
             f"DRIVER={{{driver}}};"
             f"SERVER={server};"
+            f"PORT={port};"
             f"DATABASE={database};"
             f"UID={uid};PWD={pwd};"
+            f"TDS_Version=7.4;"
         )
     # Autenticación de Windows (mismo equipo)
     return (
         f"DRIVER={{{driver}}};"
         f"SERVER={server};"
+        f"PORT={port};"
         f"DATABASE={database};"
         "Trusted_Connection=yes;"
+        "TDS_Version=7.4;"
     )
 
 
