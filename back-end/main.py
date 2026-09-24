@@ -1671,6 +1671,11 @@ def _ensure_derivacion_tables():
                 nombre VARCHAR(200) NOT NULL UNIQUE,
                 activo BOOLEAN NOT NULL DEFAULT TRUE
             );
+            CREATE TABLE IF NOT EXISTS destino (
+                id SERIAL PRIMARY KEY,
+                nombre VARCHAR(200) NOT NULL UNIQUE,
+                activo BOOLEAN NOT NULL DEFAULT TRUE
+            );
             CREATE TABLE IF NOT EXISTS derivacion (
                 id_derivacion SERIAL PRIMARY KEY,
                 mes VARCHAR(20),
@@ -1726,6 +1731,7 @@ def _ensure_derivacion_tables():
                 pg.rollback()
         for tabla, col, defn in [
             ("derivacion_prestacion", "id_centro_medico", "INTEGER REFERENCES centro_medico(id)"),
+            ("derivacion_prestacion", "id_destino", "INTEGER REFERENCES destino(id)"),
             ("derivacion_alojamiento", "id_lugar_alojamiento", "INTEGER REFERENCES lugar_alojamiento(id)"),
         ]:
             try:
