@@ -13,9 +13,11 @@ from dotenv import load_dotenv
 from jose import jwt, JWTError
 from passlib.context import CryptContext
 from pydantic import BaseModel
-from portal_auth import PortalAuthMiddleware
 
+# Antes de importar portal_auth: lee SESSION_SECRET al importarse.
 load_dotenv()
+
+from portal_auth import PortalAuthMiddleware
 
 # La documentación interactiva (/docs, /openapi.json) queda deshabilitada
 # salvo que ENABLE_DOCS=1 (solo para desarrollo local).
@@ -163,10 +165,18 @@ def get_usuarios_connection():
             "PG_PASSWORD/USR_PASSWORD no está configurada. Configurala en el "
             ".env local o en las variables de entorno de Dokploy."
         )
+    # Los usuarios SIEMPRE van a la base de identidad centralizada, nunca a
+    # la tabla usuarios de la base propia de la obra social.
+    dbname = os.getenv("USR_NAME", "") or "usuarios"
+    if dbname == os.getenv("PG_NAME", "obrasocial"):
+        raise RuntimeError(
+            f"USR_NAME apunta a '{dbname}', la base de la obra social. "
+            "Debe apuntar a la base de identidad centralizada ('usuarios')."
+        )
     return psycopg2.connect(
         host=os.getenv("USR_HOST", "") or os.getenv("PG_HOST", "localhost"),
         port=int(os.getenv("USR_PORT", "") or os.getenv("PG_PORT", "5433")),
-        dbname=os.getenv("USR_NAME", "usuarios"),
+        dbname=dbname,
         user=os.getenv("USR_USER", "") or os.getenv("PG_USER", "postgres"),
         password=password,
     )
