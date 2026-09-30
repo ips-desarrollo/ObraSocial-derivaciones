@@ -2863,10 +2863,10 @@ def practicas_buscar(q: str = "", limit: int = 15, token: str | None = Depends(o
         conn = get_connection("OS_DB")
         cursor = conn.cursor()
         cursor.execute(
-            f"""SELECT TOP {limit} Codigo, Descripcion
+            f"""SELECT TOP {limit} nom_codigo, nom_descripcion
                FROM {tabla}
-               WHERE CAST(Codigo AS VARCHAR(50)) LIKE ? OR Descripcion LIKE ?
-               ORDER BY Descripcion""",
+               WHERE CAST(nom_codigo AS VARCHAR(50)) LIKE ? OR nom_descripcion LIKE ?
+               ORDER BY nom_descripcion""",
             (like, like),
         )
         rows = cursor.fetchall()
@@ -2893,15 +2893,15 @@ def practicas_lista(q: str = "", page: int = 1, limit: int = 10, token: str | No
         cursor = conn.cursor()
         cursor.execute(
             f"""SELECT COUNT(*) FROM {tabla}
-               WHERE CAST(Codigo AS VARCHAR(50)) LIKE ? OR Descripcion LIKE ?""",
+               WHERE CAST(nom_codigo AS VARCHAR(50)) LIKE ? OR nom_descripcion LIKE ?""",
             (like, like),
         )
         total = int(cursor.fetchone()[0] or 0)
         cursor.execute(
-            f"""SELECT Codigo, Descripcion
+            f"""SELECT nom_codigo, nom_descripcion
                FROM {tabla}
-               WHERE CAST(Codigo AS VARCHAR(50)) LIKE ? OR Descripcion LIKE ?
-               ORDER BY Descripcion, Codigo
+               WHERE CAST(nom_codigo AS VARCHAR(50)) LIKE ? OR nom_descripcion LIKE ?
+               ORDER BY nom_descripcion, nom_codigo
                OFFSET ? ROWS FETCH NEXT ? ROWS ONLY""",
             (like, like, offset, limit),
         )
