@@ -2829,6 +2829,8 @@ def diagnosticos_lista(q: str = "", page: int = 1, limit: int = 10, token: str |
 # Conexión propia con variables OS_DB_* (las vacías usan las DB_*). La tabla
 # va con nombre completo base.esquema.tabla, así funciona conectado a
 # cualquiera de las dos bases. Solo SELECT: esta base está en uso.
+# Se excluyen las filas sin descripción: al ordenar por descripción
+# quedaban primeras y el popup mostraba solo códigos.
 def _tabla_nomenclador() -> str:
     """Nombre de la tabla del nomenclador, configurable con NOMENCLADOR_TABLA.
 
@@ -2865,7 +2867,8 @@ def practicas_buscar(q: str = "", limit: int = 15, token: str | None = Depends(o
         cursor.execute(
             f"""SELECT TOP {limit} nom_codigo, nom_descripcion
                FROM {tabla}
-               WHERE CAST(nom_codigo AS VARCHAR(50)) LIKE ? OR nom_descripcion LIKE ?
+               WHERE (CAST(nom_codigo AS VARCHAR(50)) LIKE ? OR nom_descripcion LIKE ?)
+                 AND LTRIM(RTRIM(ISNULL(nom_descripcion, ''))) <> ''
                ORDER BY nom_descripcion""",
             (like, like),
         )
@@ -2893,14 +2896,16 @@ def practicas_lista(q: str = "", page: int = 1, limit: int = 10, token: str | No
         cursor = conn.cursor()
         cursor.execute(
             f"""SELECT COUNT(*) FROM {tabla}
-               WHERE CAST(nom_codigo AS VARCHAR(50)) LIKE ? OR nom_descripcion LIKE ?""",
+               WHERE (CAST(nom_codigo AS VARCHAR(50)) LIKE ? OR nom_descripcion LIKE ?)
+                 AND LTRIM(RTRIM(ISNULL(nom_descripcion, ''))) <> ''""",
             (like, like),
         )
         total = int(cursor.fetchone()[0] or 0)
         cursor.execute(
             f"""SELECT nom_codigo, nom_descripcion
                FROM {tabla}
-               WHERE CAST(nom_codigo AS VARCHAR(50)) LIKE ? OR nom_descripcion LIKE ?
+               WHERE (CAST(nom_codigo AS VARCHAR(50)) LIKE ? OR nom_descripcion LIKE ?)
+                 AND LTRIM(RTRIM(ISNULL(nom_descripcion, ''))) <> ''
                ORDER BY nom_descripcion, nom_codigo
                OFFSET ? ROWS FETCH NEXT ? ROWS ONLY""",
             (like, like, offset, limit),
