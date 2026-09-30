@@ -86,13 +86,21 @@ def crear_token(data: dict) -> str:
     return jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
-def _build_conn_str():
-    server   = os.getenv("DB_SERVER",   "")
-    database = os.getenv("DB_NAME",     "")
-    driver   = os.getenv("DB_DRIVER",   "FreeTDS")
-    uid      = os.getenv("DB_USER",     "")
-    pwd      = os.getenv("DB_PASSWORD", "")
-    port     = os.getenv("DB_PORT",     "1433")
+def _build_conn_str(prefijo: str = "DB"):
+    # Con prefijo "OS_DB" (base Obra_Social) cada variable vacía cae en la DB_*.
+    def _env(nombre, defecto=""):
+        if prefijo != "DB":
+            valor = os.getenv(f"{prefijo}_{nombre}", "")
+            if valor:
+                return valor
+        return os.getenv(f"DB_{nombre}", defecto)
+
+    server   = _env("SERVER")
+    database = _env("NAME")
+    driver   = _env("DRIVER",   "FreeTDS")
+    uid      = _env("USER")
+    pwd      = _env("PASSWORD")
+    port     = _env("PORT",     "1433")
 
     if not server or not database:
         raise RuntimeError(
@@ -124,8 +132,8 @@ def _build_conn_str():
 # (arriba) para evitar reutilizar conexiones muertas del pool interno.
 # Aun así, la primera conexión tras inactividad puede tardar si SQL Express
 # necesita despertar; el retry con timeout corto evita cuelgues largos.
-def get_connection():
-    conn_str = _build_conn_str()
+def get_connection(prefijo: str = "DB"):
+    conn_str = _build_conn_str(prefijo)
     last_err = None
     for attempt in range(3):
         try:
@@ -2818,8 +2826,9 @@ def diagnosticos_lista(q: str = "", page: int = 1, limit: int = 10, token: str |
 
 
 # ── Prácticas (nomenclador de la base Obra_Social en SQL Server) ─────────
-# Se leen con nombre completo base.esquema.tabla sobre la MISMA conexión
-# (DB_NAME sigue siendo Odontologia). Solo SELECT: esta base está en uso.
+# Conexión propia con variables OS_DB_* (las vacías usan las DB_*). La tabla
+# va con nombre completo base.esquema.tabla, así funciona conectado a
+# cualquiera de las dos bases. Solo SELECT: esta base está en uso.
 def _tabla_nomenclador() -> str:
     """Nombre de la tabla del nomenclador, configurable con NOMENCLADOR_TABLA.
 
@@ -2851,7 +2860,7 @@ def practicas_buscar(q: str = "", limit: int = 15, token: str | None = Depends(o
     like = "%" + q + "%"
     try:
         tabla = _tabla_nomenclador()
-        conn = get_connection()
+        conn = get_connection("OS_DB")
         cursor = conn.cursor()
         cursor.execute(
             f"""SELECT TOP {limit} Codigo, Descripcion
@@ -2880,7 +2889,7 @@ def practicas_lista(q: str = "", page: int = 1, limit: int = 10, token: str | No
     like = "%" + q + "%"
     try:
         tabla = _tabla_nomenclador()
-        conn = get_connection()
+        conn = get_connection("OS_DB")
         cursor = conn.cursor()
         cursor.execute(
             f"""SELECT COUNT(*) FROM {tabla}
