@@ -644,12 +644,14 @@
   gap: 0.6rem;
   grid-template-areas:
     "select select fecha"
-    "diag diag diag";
+    "diag diag diag"
+    "prac prac prac";
 }
 
 .dv-fp-select  { grid-area: select; }
 .dv-fp-pat     { grid-area: pat; }
 .dv-fp-diag    { grid-area: diag; }
+.dv-fp-prac    { grid-area: prac; }
 .dv-fp-fecha   { grid-area: fecha; }
 .dv-fp-tipopat { grid-area: tipopat; }
 .dv-fp-diagpat { grid-area: diagpat; }

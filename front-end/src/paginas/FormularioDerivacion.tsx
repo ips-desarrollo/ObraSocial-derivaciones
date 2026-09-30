@@ -23,13 +23,15 @@ export interface Derivacion {
   mes: string;
   nro_disposicion: string | null;
   fecha: string | null;
-  afiliado_documento: string;
+  afiliado_documento: string | null;
   afiliado_nombre: string | null;
   afiliado_credencial: string | null;
   afiliado_edad: number | null;
   afiliado_sexo: string | null;
   expediente: string | null;
   tipo_patologia: string | null;
+  practica_codigo: string | null;
+  practica: string | null;
   diagnostico: string | null;
   fecha_turno: string | null;
   diagnostico_tratamiento: string | null;
@@ -78,6 +80,11 @@ interface Diagnostico {
   descripcion: string;
 }
 
+interface Practica {
+  codigo: string;
+  descripcion: string;
+}
+
 interface FormData {
   nro_disposicion: string;
   fecha: string;
@@ -89,6 +96,8 @@ interface FormData {
   afiliado_sexo: string;
   expediente: string;
   tipo_patologia: string;
+  practica_codigo: string;
+  practica: string;
   diagnostico: string;
   fecha_turno: string;
   diagnostico_tratamiento: string;
@@ -118,6 +127,8 @@ const emptyForm: FormData = {
   afiliado_sexo: '',
   expediente: '',
   tipo_patologia: '',
+  practica_codigo: '',
+  practica: '',
   diagnostico: '',
   fecha_turno: '',
   diagnostico_tratamiento: '',
@@ -223,6 +234,8 @@ function derivacionAForm(d: Derivacion): FormData {
     afiliado_sexo: d.afiliado_sexo || '',
     expediente: d.expediente || '',
     tipo_patologia: d.tipo_patologia || '',
+    practica_codigo: d.practica_codigo || '',
+    practica: d.practica || '',
     diagnostico: d.diagnostico || '',
     fecha_turno: d.fecha_turno || '',
     destino: d.destino || '',
@@ -331,9 +344,24 @@ export default function FormularioDerivacion({ modo, mes, derivacion, documentoI
     return data && Array.isArray(data.items) ? data : { items: [], total: 0, pages: 0 };
   }, []);
 
+  // Prácticas del nomenclador (Obra_Social en SQL Server).
+  const buscarPracticas = useCallback(async (q: string): Promise<Practica[]> => {
+    const res = await fetchAuth(`${API}/practicas/buscar?q=${encodeURIComponent(q)}&limit=15`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  }, []);
+
+  const listarPracticas = useCallback(async (q: string, page: number) => {
+    const res = await fetchAuth(`${API}/practicas/lista?q=${encodeURIComponent(q)}&page=${page}&limit=10`);
+    if (!res.ok) return { items: [], total: 0, pages: 0 };
+    const data = await res.json();
+    return data && Array.isArray(data.items) ? data : { items: [], total: 0, pages: 0 };
+  }, []);
+
   // Al abrir en editar/ver: carga patologías del afiliado para el contexto.
   useEffect(() => {
-    if (modo === 'crear' || !derivacion) return;
+    if (modo === 'crear' || !derivacion?.afiliado_documento) return;
     cargarPatologias(Number(derivacion.afiliado_documento));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -486,12 +514,10 @@ export default function FormularioDerivacion({ modo, mes, derivacion, documentoI
   }
 
   async function guardar() {
-    if (!form.afiliado_documento) {
-      setFormError('Debe seleccionar un afiliado');
-      return;
-    }
-    if (!form.fecha) {
-      setFormError('Debe indicar la fecha de la derivación');
+    // Alcanza con que haya un solo campo cargado (cualquiera) para guardar.
+    const hayAlgo = Object.values(form).some(v => v != null && String(v).trim() !== '');
+    if (!hayAlgo) {
+      setFormError('Completá al menos un campo para guardar la derivación');
       return;
     }
 
@@ -505,13 +531,15 @@ export default function FormularioDerivacion({ modo, mes, derivacion, documentoI
       mes: form.fecha ? form.fecha.slice(0, 7) : mes,
       nro_disposicion: form.nro_disposicion || null,
       fecha: form.fecha || null,
-      afiliado_documento: String(form.afiliado_documento),
+      afiliado_documento: form.afiliado_documento ? String(form.afiliado_documento) : null,
       afiliado_nombre: form.afiliado_nombre || null,
       afiliado_credencial: form.afiliado_credencial || null,
       afiliado_edad: form.afiliado_edad,
       afiliado_sexo: form.afiliado_sexo || null,
       expediente: form.expediente || null,
       tipo_patologia: form.tipo_patologia || null,
+      practica_codigo: form.practica_codigo || null,
+      practica: form.practica || null,
       diagnostico: form.diagnostico || null,
       fecha_turno: form.fecha_turno || null,
       diagnostico_tratamiento: form.diagnostico_tratamiento || null,
@@ -804,6 +832,32 @@ export default function FormularioDerivacion({ modo, mes, derivacion, documentoI
                     readOnly={soloVista}
                   />
                 </div>
+                {/* Práctica: nomenclador de Obra_Social (SQL Server) */}
+                {!soloVista ? (
+                  <BuscadorAsync<Practica>
+                    className="dv-fp-prac"
+                    label="Práctica"
+                    value={form.practica}
+                    buscar={buscarPracticas}
+                    listar={listarPracticas}
+                    getKey={(p) => `${p.codigo}|${p.descripcion}`}
+                    getTexto={(p) => p.descripcion}
+                    getDetalle={(p) => p.codigo}
+                    onSelect={(p) => setForm(f => ({ ...f, practica_codigo: p.codigo, practica: p.descripcion }))}
+                    onLimpiar={() => setForm(f => ({ ...f, practica_codigo: '', practica: '' }))}
+                    placeholder="Buscar práctica por código o descripción..."
+                  />
+                ) : (
+                  <div className="dv-form-field dv-fp-prac">
+                    <label className="dv-form-label">Práctica</label>
+                    <input
+                      className={`dv-form-input${roCls}`}
+                      value={form.practica ? (form.practica_codigo ? `${form.practica_codigo} — ${form.practica}` : form.practica) : ''}
+                      readOnly
+                      placeholder="—"
+                    />
+                  </div>
+                )}
               </div>
             </div>
 

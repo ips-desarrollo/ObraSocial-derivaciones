@@ -1611,16 +1611,18 @@ def actualizar_afiliado(documento: int, datos: dict = Body(...), token: str | No
 
 
 class DerivacionRequest(BaseModel):
-    mes: str
+    mes: str | None = None
     nro_disposicion: str | None = None
     fecha: str | None = None
-    afiliado_documento: str
+    afiliado_documento: str | None = None
     afiliado_nombre: str | None = None
     afiliado_credencial: str | None = None
     afiliado_edad: int | None = None
     afiliado_sexo: str | None = None
     expediente: str | None = None
     tipo_patologia: str | None = None
+    practica_codigo: str | None = None
+    practica: str | None = None
     diagnostico: str | None = None
     fecha_turno: str | None = None
     diagnostico_tratamiento: str | None = None
@@ -1639,6 +1641,14 @@ class DerivacionRequest(BaseModel):
     id_lugar_alojamiento: int | None = None
     cant_noches: int | None = None
     monto_alojamiento: float | None = None
+
+
+def _validar_derivacion_no_vacia(datos: DerivacionRequest):
+    """Alcanza con un campo cargado (cualquiera); el mes no cuenta porque
+    siempre viene del contexto de la pantalla."""
+    campos = datos.model_dump(exclude={"mes"})
+    if not any(v is not None and str(v).strip() != "" for v in campos.values()):
+        raise HTTPException(status_code=400, detail="Completá al menos un campo para guardar la derivación")
 
 
 def _ensure_derivacion_tables():
@@ -1680,10 +1690,10 @@ def _ensure_derivacion_tables():
                 id_derivacion SERIAL PRIMARY KEY,
                 mes VARCHAR(20),
                 nro_disposicion VARCHAR(50),
-                fecha DATE NOT NULL,
+                fecha DATE,
                 expediente VARCHAR(50),
-                afiliado_documento VARCHAR(20) NOT NULL,
-                afiliado_nombre VARCHAR(200) NOT NULL,
+                afiliado_documento VARCHAR(20),
+                afiliado_nombre VARCHAR(200),
                 afiliado_credencial VARCHAR(50),
                 afiliado_edad INTEGER,
                 afiliado_sexo VARCHAR(20),
@@ -1723,6 +1733,10 @@ def _ensure_derivacion_tables():
         for col, defn in [
             ("diagnostico_tratamiento", "TEXT"),
             ("actualizado_en", "TIMESTAMP DEFAULT NOW()"),
+            # Práctica elegida del nomenclador (SQL Server): se guarda código
+            # y descripción como copia, igual que tipo_patologia.
+            ("practica_codigo", "VARCHAR(50)"),
+            ("practica", "TEXT"),
         ]:
             try:
                 cur.execute(f"ALTER TABLE derivacion ADD COLUMN IF NOT EXISTS {col} {defn}")
@@ -1736,6 +1750,14 @@ def _ensure_derivacion_tables():
         ]:
             try:
                 cur.execute(f"ALTER TABLE {tabla} ADD COLUMN IF NOT EXISTS {col} {defn}")
+                pg.commit()
+            except Exception:
+                pg.rollback()
+        # Una derivación se puede guardar con un solo campo cargado: ninguno
+        # de estos es obligatorio (DROP NOT NULL es idempotente).
+        for col in ("fecha", "afiliado_documento", "afiliado_nombre"):
+            try:
+                cur.execute(f"ALTER TABLE derivacion ALTER COLUMN {col} DROP NOT NULL")
                 pg.commit()
             except Exception:
                 pg.rollback()
@@ -2218,7 +2240,8 @@ _DERIVACION_SELECT = """
            COALESCE(la.nombre, da.lugar_alojamiento), da.cant_noches, da.monto_alojamiento,
            d.diagnostico_tratamiento,
            dp.id_centro_medico, da.id_lugar_alojamiento,
-           dp.id_destino
+           dp.id_destino,
+           d.practica_codigo, d.practica
     FROM derivacion d
     LEFT JOIN derivacion_prestacion dp ON dp.id_derivacion = d.id_derivacion
     LEFT JOIN cobertura c ON c.id = dp.id_cobertura
@@ -2269,6 +2292,8 @@ def _row_to_derivacion(r):
         "id_centro_medico": r[31],
         "id_lugar_alojamiento": r[32],
         "id_destino": r[33],
+        "practica_codigo": r[34],
+        "practica": r[35],
     }
 
 
@@ -2320,6 +2345,7 @@ def listar_legajos_recientes(token: str | None = Depends(oauth2_scheme)):
                       COUNT(*) AS cantidad,
                       MAX(COALESCE(actualizado_en, creado_en)) AS ultima
                FROM derivacion
+               WHERE afiliado_documento IS NOT NULL
                GROUP BY afiliado_documento
                ORDER BY ultima DESC
                LIMIT 10"""
@@ -2374,6 +2400,7 @@ def crear_derivacion(datos: DerivacionRequest, token: str | None = Depends(oauth
         raise HTTPException(status_code=401, detail="No autenticado")
     if not _puede_editar(_extraer_roles(token)):
         raise HTTPException(status_code=403, detail="Sin permisos para crear derivaciones")
+    _validar_derivacion_no_vacia(datos)
     try:
         pg = get_pg_connection()
         cur = pg.cursor()
@@ -2384,8 +2411,9 @@ def crear_derivacion(datos: DerivacionRequest, token: str | None = Depends(oauth
                     afiliado_edad, afiliado_sexo,
                     tipo_patologia, diagnostico, fecha_turno,
                     diagnostico_tratamiento,
+                    practica_codigo, practica,
                     creado_por, actualizado_en)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
                RETURNING id_derivacion, creado_en""",
             (
                 datos.mes,
@@ -2401,6 +2429,8 @@ def crear_derivacion(datos: DerivacionRequest, token: str | None = Depends(oauth
                 _to_str(datos.diagnostico),
                 _to_fecha_sql(datos.fecha_turno),
                 _to_str(datos.diagnostico_tratamiento),
+                _to_str(datos.practica_codigo),
+                _to_str(datos.practica),
                 uemail or str(uid),
             ),
         )
@@ -2452,6 +2482,7 @@ def actualizar_derivacion(derivacion_id: int, datos: DerivacionRequest, token: s
         raise HTTPException(status_code=401, detail="No autenticado")
     if not _puede_editar(_extraer_roles(token)):
         raise HTTPException(status_code=403, detail="Sin permisos para editar derivaciones")
+    _validar_derivacion_no_vacia(datos)
     try:
         pg = get_pg_connection()
         cur = pg.cursor()
@@ -2466,7 +2497,8 @@ def actualizar_derivacion(derivacion_id: int, datos: DerivacionRequest, token: s
                    afiliado_documento=%s, afiliado_nombre=%s, afiliado_credencial=%s,
                    afiliado_edad=%s, afiliado_sexo=%s,
                    tipo_patologia=%s, diagnostico=%s, fecha_turno=%s,
-                   diagnostico_tratamiento=%s, actualizado_en=NOW()
+                   diagnostico_tratamiento=%s,
+                   practica_codigo=%s, practica=%s, actualizado_en=NOW()
                WHERE id_derivacion=%s""",
             (
                 datos.mes,
@@ -2482,6 +2514,8 @@ def actualizar_derivacion(derivacion_id: int, datos: DerivacionRequest, token: s
                 _to_str(datos.diagnostico),
                 _to_fecha_sql(datos.fecha_turno),
                 _to_str(datos.diagnostico_tratamiento),
+                _to_str(datos.practica_codigo),
+                _to_str(datos.practica),
                 derivacion_id,
             ),
         )
@@ -2777,6 +2811,94 @@ def diagnosticos_lista(q: str = "", page: int = 1, limit: int = 10, token: str |
             }
             for r in rows
         ]
+        pages = (total + limit - 1) // limit if total else 0
+        return {"items": items, "total": total, "page": page, "pages": pages}
+    except Exception as e:
+        raise _error_interno(e)
+
+
+# ── Prácticas (nomenclador de la base Obra_Social en SQL Server) ─────────
+# Se leen con nombre completo base.esquema.tabla sobre la MISMA conexión
+# (DB_NAME sigue siendo Odontologia). Solo SELECT: esta base está en uso.
+def _tabla_nomenclador() -> str:
+    """Nombre de la tabla del nomenclador, configurable con NOMENCLADOR_TABLA.
+
+    Se valida y se escapa cada parte con [] porque va interpolado en el SQL."""
+    crudo = os.getenv("NOMENCLADOR_TABLA", "") or "Obra_Social.dbo.nomenclador"
+    partes = crudo.strip().split(".")
+    if not 1 <= len(partes) <= 3 or not all(p and p.replace("_", "").isalnum() for p in partes):
+        raise RuntimeError(f"NOMENCLADOR_TABLA inválida: '{crudo}'")
+    return ".".join(f"[{p}]" for p in partes)
+
+
+def _row_to_practica(r):
+    return {
+        "codigo": _to_str(_normalizar_valor(r[0])) or "",
+        "descripcion": (r[1] or "").strip(),
+    }
+
+
+@app.get("/practicas/buscar")
+def practicas_buscar(q: str = "", limit: int = 15, token: str | None = Depends(oauth2_scheme)):
+    """Busca prácticas del nomenclador por código o descripción (LIKE), TOP N."""
+    uid, _ = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    q = (q or "").strip()
+    if len(q) < 2:
+        return []
+    limit = max(1, min(int(limit or 15), 50))
+    like = "%" + q + "%"
+    try:
+        tabla = _tabla_nomenclador()
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            f"""SELECT TOP {limit} Codigo, Descripcion
+               FROM {tabla}
+               WHERE CAST(Codigo AS VARCHAR(50)) LIKE ? OR Descripcion LIKE ?
+               ORDER BY Descripcion""",
+            (like, like),
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+        return [_row_to_practica(r) for r in rows]
+    except Exception as e:
+        raise _error_interno(e)
+
+
+@app.get("/practicas/lista")
+def practicas_lista(q: str = "", page: int = 1, limit: int = 10, token: str | None = Depends(oauth2_scheme)):
+    """Lista paginada de prácticas del nomenclador (para el popup)."""
+    uid, _ = _extraer_usuario(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    q = (q or "").strip()
+    page = max(1, int(page or 1))
+    limit = max(1, min(int(limit or 10), 50))
+    offset = (page - 1) * limit
+    like = "%" + q + "%"
+    try:
+        tabla = _tabla_nomenclador()
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            f"""SELECT COUNT(*) FROM {tabla}
+               WHERE CAST(Codigo AS VARCHAR(50)) LIKE ? OR Descripcion LIKE ?""",
+            (like, like),
+        )
+        total = int(cursor.fetchone()[0] or 0)
+        cursor.execute(
+            f"""SELECT Codigo, Descripcion
+               FROM {tabla}
+               WHERE CAST(Codigo AS VARCHAR(50)) LIKE ? OR Descripcion LIKE ?
+               ORDER BY Descripcion, Codigo
+               OFFSET ? ROWS FETCH NEXT ? ROWS ONLY""",
+            (like, like, offset, limit),
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+        items = [_row_to_practica(r) for r in rows]
         pages = (total + limit - 1) // limit if total else 0
         return {"items": items, "total": total, "page": page, "pages": pages}
     except Exception as e:
